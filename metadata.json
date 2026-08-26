@@ -1,0 +1,6 @@
+{
+  "name": "LedFlow",
+  "description": "Professional LED video wall layout and wiring diagram designer with Data and Power planning, custom module sizing, and vector SVG/XML export.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
