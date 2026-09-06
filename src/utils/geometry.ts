@@ -3,31 +3,30 @@ import { MODULE_PALETTE_25 } from '../constants';
 
 /**
  * Compute start (main) and end (backup) names for a data line based on naming mode and index
+ * 1) 1.1 - 1.9 .. 1.8 - 1.16, next 8 are 2.1 - 2.9 .. 2.8 - 2.16, etc.
+ * 2) 1A - 1B
+ * 3) none
  */
 export function computeDataLineNames(
   mode: DataLineNamingMode | undefined,
-  lineIndex: number,
-  globalPrefix?: string,
-  linePrefix?: string
+  lineIndex: number
 ): { name: string; endName: string } {
   if (mode === 'none') {
     return { name: '', endName: '' };
   }
-  if (mode === 'p.1-p.9') {
-    const p = (linePrefix !== undefined && linePrefix !== '')
-      ? linePrefix
-      : (globalPrefix !== undefined && globalPrefix !== '' ? globalPrefix : '1');
-    const startPort = (lineIndex % 8) + 1; // 1 to 8
-    const endPort = (lineIndex % 8) + 9;   // 9 to 16
+  if (mode === '1A-1B') {
     return {
-      name: `${p}.${startPort}`,
-      endName: `${p}.${endPort}`
+      name: `${lineIndex + 1}A`,
+      endName: `${lineIndex + 1}B`
     };
   }
-  // Default is '1A-1B'
+  // Default and '1.1-1.9' / 'p.1-p.9'
+  const group = Math.floor(lineIndex / 8) + 1;
+  const startPort = (lineIndex % 8) + 1; // 1 to 8
+  const endPort = (lineIndex % 8) + 9;   // 9 to 16
   return {
-    name: `${lineIndex + 1}A`,
-    endName: `${lineIndex + 1}B`
+    name: `${group}.${startPort}`,
+    endName: `${group}.${endPort}`
   };
 }
 
@@ -217,6 +216,20 @@ export function isValidModuleCell(grid: GridModel, row: number, col: number): bo
  * Get module at position (x, y) relative to grid offset
  */
 export function getModuleAtPosition(grid: GridModel, x: number, y: number): Point | null {
+  if (grid.mergedSubGrids && grid.mergedSubGrids.length > 0) {
+    for (const sub of grid.mergedSubGrids) {
+      for (const m of sub.modules) {
+        const geom = getModuleGeometry(grid, m.row, m.col);
+        if (x >= geom.x && x < geom.x + geom.width && y >= geom.y && y < geom.y + geom.height) {
+          if (isValidModuleCell(grid, m.row, m.col)) {
+            return { row: m.row, col: m.col };
+          }
+        }
+      }
+    }
+    return null;
+  }
+
   if (grid.customModules && grid.customModules.length > 0) {
     for (const customModule of grid.customModules) {
       const geom = getModuleGeometry(grid, customModule.row, customModule.col);

@@ -1,4 +1,10 @@
-export type GridMode = 'data-lines' | 'power-lines' | 'visibility';
+export type GridMode = 'data-lines' | 'power-lines' | 'visibility' | 'drag';
+
+export interface DragOptions {
+  snapToGrids: boolean;
+  snapToCanvas: boolean;
+  snapToModuleStep: boolean;
+}
 
 export type ToolAction = 'draw' | 'erase';
 
@@ -30,7 +36,7 @@ export interface OverlappedModule {
   col: number;
 }
 
-export type DataLineNamingMode = 'none' | '1A-1B' | 'p.1-p.9';
+export type DataLineNamingMode = 'none' | '1A-1B' | '1.1-1.9' | 'p.1-p.9';
 
 export interface DataLineConnection {
   points: Point[];
@@ -130,6 +136,20 @@ export interface GridModel {
   blinkInterval: number | null;
   rectFirstCorner: Point | null;
   powerFirstCorner: Point | null;
+}
+
+export type CanvasBackgroundStyle = 'transparent' | 'solid' | 'grid' | 'dots';
+
+export interface CanvasPreferences {
+  altLineStyle: boolean;
+  cableCurvature: number;
+  autoSave: boolean;
+  backgroundStyle: CanvasBackgroundStyle;
+  backgroundColor: string;
+  gridCellSize: number;
+  dotsSpacing: number;
+  patternBrightness: number;
+  showRulers: boolean;
 }
 
 export interface AppStateSnapshot {

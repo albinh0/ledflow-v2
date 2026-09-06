@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { GridModel, Point, GridMode, ToolAction } from '../types';
+import { GridModel, Point, GridMode, ToolAction, DragOptions, CanvasBackgroundStyle } from '../types';
 import { MAIN_COLORS, GROUP_COLORS, HIGHLIGHT_DURATION, DEFAULT_ID_FONT } from '../constants';
 import {
   getModuleGeometry,
@@ -14,6 +14,9 @@ import {
   calculatePowerGroupRemoval,
   calculateDataLineRemoval
 } from '../utils/geometry';
+import { computeDragSnap, DragSnapResult, getGridWorldDimensions } from '../utils/dragSnapping';
+import { CanvasRulersTop, CanvasRulersLeft, RULER_THICKNESS } from './CanvasRulers';
+import { getPatternColors } from '../utils/exportImport';
 
 interface CanvasStageProps {
   grids: Record<string, GridModel>;
@@ -23,8 +26,16 @@ interface CanvasStageProps {
   currentScale: number;
   highlightedGridId: string | null;
   altLineStyle?: boolean;
+  cableCurvature?: number;
+  canvasBackground?: CanvasBackgroundStyle;
+  backgroundColor?: string;
+  gridCellSize?: number;
+  dotsSpacing?: number;
+  patternBrightness?: number;
+  showRulers?: boolean;
+  canvasDragMode?: boolean;
+  dragOptions?: DragOptions;
   onSelectGrid: (gridId: string) => void;
-  onCursorMove: (coords: { x: number; y: number } | null) => void;
   onUpdateGrid: (gridId: string, updater: (prev: GridModel) => GridModel, actionDescription?: string) => void;
   onShowTooltip: (msg: string, type?: 'error' | 'success') => void;
   containerRef: React.RefObject<HTMLDivElement | null>;
@@ -33,21 +44,55 @@ interface CanvasStageProps {
 
 const HANDWRITING_CURSOR = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M3 21l3.5-1L18 8.5 15.5 6 4 17.5 3 21z' fill='%230f172a' stroke='%23ffffff' stroke-width='1.4' stroke-linejoin='round'/%3E%3Cpath d='M14 4.5l2.5-2.5a1 1 0 0 1 1.4 0l2.6 2.6a1 1 0 0 1 0 1.4L18 8.5 14 4.5z' fill='%230284c7' stroke='%23ffffff' stroke-width='1.4' stroke-linejoin='round'/%3E%3Ccircle cx='2.5' cy='21.5' r='1.2' fill='%23ffffff'/%3E%3C/svg%3E") 2 22, crosshair`;
 
+const HANDWRITING_ERASE_CURSOR = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'%3E%3C!-- Pen body --%3E%3Cpath d='M3 21l3.5-1L18 8.5 15.5 6 4 17.5 3 21z' fill='%230f172a' stroke='%23ffffff' stroke-width='1.4' stroke-linejoin='round'/%3E%3Cpath d='M14 4.5l2.5-2.5a1 1 0 0 1 1.4 0l2.6 2.6a1 1 0 0 1 0 1.4L18 8.5 14 4.5z' fill='%230284c7' stroke='%23ffffff' stroke-width='1.4' stroke-linejoin='round'/%3E%3Ccircle cx='2.5' cy='21.5' r='1.2' fill='%23ffffff'/%3E%3C/svg%3E") 2 22, crosshair`;
+
 const PRECISION_SELECT_CURSOR = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24'%3E%3C!-- White backing outline for contrast --%3E%3Cpath d='M3 9V3h6M15 3h6v6M3 15v6h6M21 15v6h-6' fill='none' stroke='%23ffffff' stroke-width='3.6' stroke-linecap='square' stroke-linejoin='miter'/%3E%3C!-- Dark corner brackets forming frame --%3E%3Cpath d='M3 9V3h6M15 3h6v6M3 15v6h6M21 15v6h-6' fill='none' stroke='%230f172a' stroke-width='2' stroke-linecap='square' stroke-linejoin='miter'/%3E%3C!-- Cyan-blue corner accent points --%3E%3Cpath d='M3 3h2v2H3zM19 3h2v2h-2zM3 19h2v2H3zM19 19h2v2h-2z' fill='%230284c7'/%3E%3C/svg%3E") 8 8, crosshair`;
+
+const PRECISION_SELECT_ERASE_CURSOR = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'%3E%3C!-- Corner brackets --%3E%3Cpath d='M3 9V3h6M15 3h6v6M3 15v6h6M21 15v6h-6' fill='none' stroke='%23ffffff' stroke-width='3.6' stroke-linecap='square' stroke-linejoin='miter'/%3E%3Cpath d='M3 9V3h6M15 3h6v6M3 15v6h6M21 15v6h-6' fill='none' stroke='%230f172a' stroke-width='2' stroke-linecap='square' stroke-linejoin='miter'/%3E%3Cpath d='M3 3h2v2H3zM19 3h2v2h-2zM3 19h2v2H3zM19 19h2v2h-2z' fill='%230284c7'/%3E%3C!-- Minus badge --%3E%3Ccircle cx='20' cy='20' r='6.5' fill='%23ef4444' stroke='%23ffffff' stroke-width='1.4'/%3E%3Cline x1='16.5' y1='20' x2='23.5' y2='20' stroke='%23ffffff' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E") 8 8, crosshair`;
 
 const HIDE_SELECT_CURSOR = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24'%3E%3C!-- White backing outline for contrast --%3E%3Cpath d='M2 9.5C6.5 17 17.5 17 22 9.5M4 11.2L2.5 14.8M7.6 13.8L6 18M12 14.5V19.5M16.4 13.8L18 18M20 11.2L21.5 14.8' fill='none' stroke='%23ffffff' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C!-- Dark closed eye with lashes --%3E%3Cpath d='M2 9.5C6.5 17 17.5 17 22 9.5M4 11.2L2.5 14.8M7.6 13.8L6 18M12 14.5V19.5M16.4 13.8L18 18M20 11.2L21.5 14.8' fill='none' stroke='%230f172a' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") 8 8, pointer`;
 
-const ERASE_MINUS_CURSOR = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3C!-- Shadow ring --%3E%3Ccircle cx='12' cy='12' r='9.5' fill='none' stroke='%23000000' stroke-width='3' stroke-opacity='0.4'/%3E%3C!-- Red circular body with white stroke --%3E%3Ccircle cx='12' cy='12' r='8.5' fill='%23ef4444' stroke='%23ffffff' stroke-width='1.8'/%3E%3C!-- White minus symbol --%3E%3Cline x1='6.5' y1='12' x2='17.5' y2='12' stroke='%23ffffff' stroke-width='2.6' stroke-linecap='round'/%3E%3C/svg%3E") 12 12, crosshair`;
-
-const getCanvasCursor = (isOverActive: boolean, mode?: GridMode, toolAction?: ToolAction): string => {
+const getCanvasCursor = (
+  isOverActive: boolean,
+  isOverAnyGrid: boolean,
+  isDragging: boolean,
+  mode?: GridMode,
+  toolAction?: ToolAction,
+  canvasDragMode?: boolean
+): string => {
+  if (canvasDragMode || mode === 'drag') {
+    if (isDragging) return 'grabbing';
+    if (isOverAnyGrid || isOverActive) return 'grab';
+    return 'default';
+  }
   if (!isOverActive) return 'default';
-  if (toolAction === 'erase' && (mode === 'data-lines' || mode === 'power-lines')) {
-    return ERASE_MINUS_CURSOR;
+  if (toolAction === 'erase') {
+    if (mode === 'data-lines') return HANDWRITING_ERASE_CURSOR;
+    if (mode === 'power-lines') return PRECISION_SELECT_ERASE_CURSOR;
   }
   if (mode === 'data-lines') return HANDWRITING_CURSOR;
   if (mode === 'power-lines') return PRECISION_SELECT_CURSOR;
   if (mode === 'visibility') return HIDE_SELECT_CURSOR;
   return 'default';
+};
+
+const getCanvasWrapperBackgroundStyle = (
+  bgStyle: CanvasBackgroundStyle = 'transparent'
+): React.CSSProperties => {
+  if (bgStyle === 'transparent') {
+    return {
+      backgroundColor: '#222228',
+      backgroundImage: `
+        linear-gradient(45deg, #2f2f38 25%, transparent 25%),
+        linear-gradient(-45deg, #2f2f38 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #2f2f38 75%),
+        linear-gradient(-45deg, transparent 75%, #2f2f38 75%)
+      `,
+      backgroundSize: '16px 16px',
+      backgroundPosition: '0 0, 0 8px, 8px -8px, -8px 0px'
+    };
+  }
+  return {};
 };
 
 export function CanvasStage({
@@ -58,8 +103,16 @@ export function CanvasStage({
   currentScale,
   highlightedGridId,
   altLineStyle = true,
+  cableCurvature = 0.2,
+  canvasBackground = 'transparent',
+  backgroundColor = '#151518',
+  gridCellSize = 25,
+  dotsSpacing = 25,
+  patternBrightness = 29,
+  showRulers = false,
+  canvasDragMode = true,
+  dragOptions,
   onSelectGrid,
-  onCursorMove,
   onUpdateGrid,
   onShowTooltip,
   containerRef,
@@ -68,6 +121,12 @@ export function CanvasStage({
   const highlightStartRef = useRef<number | null>(null);
   const animationsRef = useRef<Map<string, { type: 'show' | 'hide'; startTime: number }>>(new Map());
   const [hoveredMod, setHoveredMod] = useState<{ row: number; col: number } | null>(null);
+
+  useEffect(() => {
+    if (activeTab && activeTab !== 'settings') {
+      highlightStartRef.current = performance.now();
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     if (highlightedGridId) {
@@ -79,6 +138,23 @@ export function CanvasStage({
   const altKeyRef = useRef(false);
   const shiftKeyRef = useRef(false);
   const cursorOverGridRef = useRef(false);
+  const cursorOverAnyGridRef = useRef(false);
+
+  // Drag mode state & snap guides
+  const justDraggedRef = useRef(false);
+  const dragStateRef = useRef<{
+    isDragging: boolean;
+    gridId: string;
+    startMouseCanvasX: number;
+    startMouseCanvasY: number;
+    startOffsetX: number;
+    startOffsetY: number;
+    currentOffsetX: number;
+    currentOffsetY: number;
+    hasMoved: boolean;
+  } | null>(null);
+  const [isDraggingState, setIsDraggingState] = useState(false);
+  const activeDragGuidesRef = useRef<DragSnapResult | null>(null);
 
   // Animation frame loop
   useEffect(() => {
@@ -93,6 +169,45 @@ export function CanvasStage({
       canvas.width = outputWidth;
       canvas.height = outputHeight;
       ctx.clearRect(0, 0, outputWidth, outputHeight);
+
+      // 0. Render Canvas Background onto canvas (Transparent, Solid, Grid, or Dots)
+      if (canvasBackground === 'solid') {
+        ctx.fillStyle = backgroundColor || '#151518';
+        ctx.fillRect(0, 0, outputWidth, outputHeight);
+      } else if (canvasBackground === 'grid') {
+        const patternColors = getPatternColors(patternBrightness);
+        ctx.fillStyle = patternColors.bgColor;
+        ctx.fillRect(0, 0, outputWidth, outputHeight);
+
+        const cellSize = Math.max(5, Math.min(200, gridCellSize || 25));
+        ctx.strokeStyle = `rgba(${patternColors.fgColor}, ${patternColors.fgAlpha})`;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (let x = cellSize; x < outputWidth; x += cellSize) {
+          ctx.moveTo(x + 0.5, 0);
+          ctx.lineTo(x + 0.5, outputHeight);
+        }
+        for (let y = cellSize; y < outputHeight; y += cellSize) {
+          ctx.moveTo(0, y + 0.5);
+          ctx.lineTo(outputWidth, y + 0.5);
+        }
+        ctx.stroke();
+      } else if (canvasBackground === 'dots') {
+        const patternColors = getPatternColors(patternBrightness);
+        ctx.fillStyle = patternColors.bgColor;
+        ctx.fillRect(0, 0, outputWidth, outputHeight);
+
+        const spacing = Math.max(5, Math.min(200, dotsSpacing || 25));
+        const dotRadius = Math.max(1, Math.min(3, spacing * 0.05));
+        ctx.fillStyle = `rgba(${patternColors.fgColor}, ${Math.min(1, patternColors.fgAlpha * 1.4)})`;
+        for (let x = spacing / 2; x < outputWidth; x += spacing) {
+          for (let y = spacing / 2; y < outputHeight; y += spacing) {
+            ctx.beginPath();
+            ctx.arc(x, y, dotRadius, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+      }
 
       // Output border
       ctx.strokeStyle = '#555';
@@ -288,6 +403,10 @@ export function CanvasStage({
 
               // Hatching on visible modules (Only if altLineStyle is OFF)
               if (!altLineStyle) {
+                const hatchColor = (conn.color && conn.color !== '#000000')
+                  ? conn.color
+                  : MAIN_COLORS[lineIndex % MAIN_COLORS.length];
+
                 conn.points.forEach((point) => {
                   if (!grid.gridState[point.row] || !grid.gridState[point.row][point.col]) return;
                   const geom = getModuleGeometry(grid, point.row, point.col);
@@ -295,7 +414,7 @@ export function CanvasStage({
                   ctx.beginPath();
                   ctx.rect(geom.x, geom.y, geom.width, geom.height);
                   ctx.clip();
-                  ctx.strokeStyle = conn.color + '80';
+                  ctx.strokeStyle = hatchColor + '80';
                   ctx.lineWidth = 2;
 
                   if (isForwardSlash) {
@@ -327,7 +446,9 @@ export function CanvasStage({
 
                 if (visiblePoints.length >= 1) {
                   const isHovered = grid.hoveredLineIndex === index;
-                  const strokeColor = isHovered ? '#00BFFF' : (conn.color || '#000000');
+                  const strokeColor = isHovered
+                    ? '#00BFFF'
+                    : (altLineStyle ? (conn.color || '#000000') : '#000000');
 
                   // Start point dot in Modern style
                   if (altLineStyle) {
@@ -348,11 +469,26 @@ export function CanvasStage({
                     ctx.strokeStyle = strokeColor;
                     ctx.lineWidth = lineWidth;
                     ctx.beginPath();
-                    visiblePoints.forEach((point, i) => {
-                      const geom = getModuleGeometry(grid, point.row, point.col);
-                      if (i === 0) ctx.moveTo(geom.centerX, geom.centerY);
-                      else ctx.lineTo(geom.centerX, geom.centerY);
-                    });
+
+                    if (altLineStyle && cableCurvature > 0 && visiblePoints.length > 2) {
+                      const geom0 = getModuleGeometry(grid, visiblePoints[0].row, visiblePoints[0].col);
+                      ctx.moveTo(geom0.centerX, geom0.centerY);
+
+                      const cornerRadius = Math.min(geom0.width, geom0.height) * 0.35 * Math.min(1, Math.max(0, cableCurvature));
+                      for (let i = 1; i < visiblePoints.length - 1; i++) {
+                        const currentGeom = getModuleGeometry(grid, visiblePoints[i].row, visiblePoints[i].col);
+                        const nextGeom = getModuleGeometry(grid, visiblePoints[i + 1].row, visiblePoints[i + 1].col);
+                        ctx.arcTo(currentGeom.centerX, currentGeom.centerY, nextGeom.centerX, nextGeom.centerY, cornerRadius);
+                      }
+                      const lastGeom = getModuleGeometry(grid, visiblePoints[visiblePoints.length - 1].row, visiblePoints[visiblePoints.length - 1].col);
+                      ctx.lineTo(lastGeom.centerX, lastGeom.centerY);
+                    } else {
+                      visiblePoints.forEach((point, i) => {
+                        const geom = getModuleGeometry(grid, point.row, point.col);
+                        if (i === 0) ctx.moveTo(geom.centerX, geom.centerY);
+                        else ctx.lineTo(geom.centerX, geom.centerY);
+                      });
+                    }
                     ctx.stroke();
 
                     // Arrowhead
@@ -382,17 +518,21 @@ export function CanvasStage({
                 }
               }
 
-              // Labels
-              if (conn.points.length === 1) {
-                if (conn.name || conn.endName) {
-                  const first = conn.points[0];
-                  if (grid.gridState[first.row] && grid.gridState[first.row][first.col]) {
-                    const geom = getModuleGeometry(grid, first.row, first.col);
-                    let labelText = '';
-                    if (conn.name && conn.endName) labelText = `${conn.name}-${conn.endName}`;
-                    else if (conn.name) labelText = conn.name;
-                    else if (conn.endName) labelText = conn.endName;
+              // Labels on visible points
+              const visiblePoints = conn.points.filter(
+                (p) => grid.gridState[p.row] && grid.gridState[p.row][p.col]
+              );
 
+              if (visiblePoints.length === 1) {
+                if (conn.name || conn.endName) {
+                  const first = visiblePoints[0];
+                  const geom = getModuleGeometry(grid, first.row, first.col);
+                  let labelText = '';
+                  if (conn.name && conn.endName) labelText = `${conn.name}-${conn.endName}`;
+                  else if (conn.name) labelText = conn.name;
+                  else if (conn.endName) labelText = conn.endName;
+
+                  if (labelText) {
                     const minSide = Math.min(geom.width, geom.height);
                     const fontSize = Math.round(minSide * (grid.dataLineFontSizePercent / 100));
                     ctx.font = `bold ${fontSize}px ${grid.dataLineFont}`;
@@ -402,63 +542,56 @@ export function CanvasStage({
                     ctx.fillText(labelText, geom.centerX, geom.centerY);
                   }
                 }
-              } else {
-                if (conn.name && conn.points.length > 0) {
-                  const first = conn.points[0];
-                  if (grid.gridState[first.row] && grid.gridState[first.row][first.col]) {
-                    const geom = getModuleGeometry(grid, first.row, first.col);
-                    let labelX = geom.centerX;
-                    let labelY = geom.centerY;
-                    if (conn.points.length > 1) {
-                      const second = conn.points[1];
-                      if (second.col > first.col) {
-                        labelX = geom.x + geom.width / 4;
-                        labelY = geom.y + (3 * geom.height) / 4;
-                      } else if (second.col < first.col) {
-                        labelX = geom.x + (3 * geom.width) / 4;
-                        labelY = geom.y + geom.height / 4;
-                      } else if (second.row > first.row) {
-                        labelX = geom.x + (3 * geom.width) / 4;
-                        labelY = geom.y + geom.height / 4;
-                      } else if (second.row < first.row) {
-                        labelX = geom.x + geom.width / 4;
-                        labelY = geom.y + (3 * geom.height) / 4;
-                      }
-                    }
-                    const minSide = Math.min(geom.width, geom.height);
-                    const fontSize = Math.round(minSide * (grid.dataLineFontSizePercent / 100));
-                    ctx.font = `bold ${fontSize}px ${grid.dataLineFont}`;
-                    ctx.fillStyle = '#000000';
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
-                    ctx.fillText(conn.name, labelX, labelY);
+              } else if (visiblePoints.length >= 2) {
+                const first = visiblePoints[0];
+                const second = visiblePoints[1];
+                const last = visiblePoints[visiblePoints.length - 1];
+                const secondLast = visiblePoints[visiblePoints.length - 2];
+
+                if (conn.name) {
+                  const geom = getModuleGeometry(grid, first.row, first.col);
+                  let labelX = geom.centerX;
+                  let labelY = geom.centerY;
+                  if (second.col > first.col) {
+                    labelX = geom.x + geom.width / 4;
+                    labelY = geom.y + (3 * geom.height) / 4;
+                  } else if (second.col < first.col) {
+                    labelX = geom.x + (3 * geom.width) / 4;
+                    labelY = geom.y + geom.height / 4;
+                  } else if (second.row > first.row) {
+                    labelX = geom.x + (3 * geom.width) / 4;
+                    labelY = geom.y + geom.height / 4;
+                  } else if (second.row < first.row) {
+                    labelX = geom.x + geom.width / 4;
+                    labelY = geom.y + (3 * geom.height) / 4;
                   }
+                  const minSide = Math.min(geom.width, geom.height);
+                  const fontSize = Math.round(minSide * (grid.dataLineFontSizePercent / 100));
+                  ctx.font = `bold ${fontSize}px ${grid.dataLineFont}`;
+                  ctx.fillStyle = '#000000';
+                  ctx.textAlign = 'center';
+                  ctx.textBaseline = 'middle';
+                  ctx.fillText(conn.name, labelX, labelY);
                 }
 
-                if (conn.endName && conn.points.length > 0) {
-                  const last = conn.points[conn.points.length - 1];
-                  if (grid.gridState[last.row] && grid.gridState[last.row][last.col]) {
-                    const geom = getModuleGeometry(grid, last.row, last.col);
-                    let labelX = geom.centerX;
-                    let labelY = geom.centerY;
-                    if (conn.points.length > 1) {
-                      const secondLast = conn.points[conn.points.length - 2];
-                      if (secondLast.col > last.col || secondLast.row < last.row) {
-                        labelX = geom.x + geom.width / 4;
-                        labelY = geom.y + (3 * geom.height) / 4;
-                      } else if (secondLast.col < last.col || secondLast.row > last.row) {
-                        labelX = geom.x + (3 * geom.width) / 4;
-                        labelY = geom.y + geom.height / 4;
-                      }
-                    }
-                    const minSide = Math.min(geom.width, geom.height);
-                    const fontSize = Math.round(minSide * (grid.dataLineFontSizePercent / 100));
-                    ctx.font = `bold ${fontSize}px ${grid.dataLineFont}`;
-                    ctx.fillStyle = '#000000';
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
-                    ctx.fillText(conn.endName, labelX, labelY);
+                if (conn.endName) {
+                  const geom = getModuleGeometry(grid, last.row, last.col);
+                  let labelX = geom.centerX;
+                  let labelY = geom.centerY;
+                  if (secondLast.col > last.col || secondLast.row < last.row) {
+                    labelX = geom.x + geom.width / 4;
+                    labelY = geom.y + (3 * geom.height) / 4;
+                  } else if (secondLast.col < last.col || secondLast.row > last.row) {
+                    labelX = geom.x + (3 * geom.width) / 4;
+                    labelY = geom.y + geom.height / 4;
                   }
+                  const minSide = Math.min(geom.width, geom.height);
+                  const fontSize = Math.round(minSide * (grid.dataLineFontSizePercent / 100));
+                  ctx.font = `bold ${fontSize}px ${grid.dataLineFont}`;
+                  ctx.fillStyle = '#000000';
+                  ctx.textAlign = 'center';
+                  ctx.textBaseline = 'middle';
+                  ctx.fillText(conn.endName, labelX, labelY);
                 }
               }
             }
@@ -912,7 +1045,9 @@ export function CanvasStage({
                 ctx.rect(geom.x, geom.y, geom.width, geom.height);
                 ctx.clip();
 
-                const baseColor = grid.currentColor || MAIN_COLORS[0];
+                const baseColor = (grid.currentColor && grid.currentColor !== '#000000')
+                  ? grid.currentColor
+                  : MAIN_COLORS[lineIndex % MAIN_COLORS.length];
                 const r = parseInt(baseColor.slice(1, 3), 16);
                 const g = parseInt(baseColor.slice(3, 5), 16);
                 const b = parseInt(baseColor.slice(5, 7), 16);
@@ -941,7 +1076,7 @@ export function CanvasStage({
               const firstPoint = grid.currentConnection[0];
               const geom = getModuleGeometry(grid, firstPoint.row, firstPoint.col);
               const dotRadius = Math.max(3, Math.min(geom.width, geom.height) * 0.06);
-              const inProgressColor = grid.currentColor || (altLineStyle ? '#000000' : MAIN_COLORS[0]);
+              const inProgressColor = altLineStyle ? (grid.currentColor || '#000000') : '#000000';
               ctx.save();
               ctx.fillStyle = inProgressColor;
               ctx.globalAlpha = pulseOpacity;
@@ -952,7 +1087,7 @@ export function CanvasStage({
             }
 
             if (grid.currentConnection.length >= 2) {
-              const inProgressColor = grid.currentColor || (altLineStyle ? '#000000' : MAIN_COLORS[0]);
+              const inProgressColor = altLineStyle ? (grid.currentColor || '#000000') : '#000000';
               const lineWidth = Math.max(3, grid.moduleWidth / 30);
               ctx.save();
               ctx.strokeStyle = inProgressColor;
@@ -995,7 +1130,7 @@ export function CanvasStage({
             }
           }
 
-          // 6. Highlight Border on Grid Selection Switch
+          // 6. Highlight Border on Grid Selection Switch with fading ACTIVE badge at bottom-left
           if (gId === highlightedGridId && highlightStartRef.current !== null) {
             const elapsed = time - highlightStartRef.current;
             if (elapsed < HIGHLIGHT_DURATION) {
@@ -1006,15 +1141,55 @@ export function CanvasStage({
 
               const gridWidth = grid.cols * grid.moduleWidth;
               const gridHeight = grid.rows * grid.moduleHeight;
-              const strokeWidth = 5.5;
+              const strokeWidth = 8.25; // 1.5x thicker than original 5.5px
               const halfStroke = strokeWidth / 2;
 
+              ctx.save();
+              // Red border
               ctx.beginPath();
               ctx.rect(halfStroke, halfStroke, gridWidth - strokeWidth, gridHeight - strokeWidth);
-              ctx.strokeStyle = `rgba(255, 0, 0, ${opacity})`;
+              ctx.strokeStyle = `rgba(239, 68, 68, ${opacity})`;
               ctx.lineWidth = strokeWidth;
               ctx.lineJoin = 'miter';
               ctx.stroke();
+
+              // Active Badge in bottom-left corner (3x size)
+              const badgePaddingX = 28;
+              const badgeHeight = 66;
+              const badgeMargin = strokeWidth + 8;
+              const badgeY = gridHeight - strokeWidth - badgeHeight - 8;
+              const badgeX = badgeMargin;
+
+              ctx.font = '900 32px Inter, system-ui, -apple-system, sans-serif';
+              const text = 'ACTIVE';
+              const textWidth = ctx.measureText(text).width;
+              const badgeWidth = textWidth + badgePaddingX * 2 + 28; // includes scaled status dot and spacing
+
+              // Badge background
+              ctx.fillStyle = `rgba(239, 68, 68, ${0.95 * opacity})`;
+              ctx.beginPath();
+              if (typeof ctx.roundRect === 'function') {
+                ctx.roundRect(badgeX, badgeY, badgeWidth, badgeHeight, 12);
+              } else {
+                ctx.rect(badgeX, badgeY, badgeWidth, badgeHeight);
+              }
+              ctx.fill();
+
+              // White dot inside badge
+              const dotX = badgeX + badgePaddingX;
+              const dotY = badgeY + badgeHeight / 2;
+              ctx.beginPath();
+              ctx.arc(dotX, dotY, 8, 0, Math.PI * 2);
+              ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
+              ctx.fill();
+
+              // ACTIVE text
+              ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
+              ctx.textAlign = 'left';
+              ctx.textBaseline = 'middle';
+              ctx.fillText(text, dotX + 20, dotY);
+
+              ctx.restore();
             }
           }
 
@@ -1182,18 +1357,234 @@ export function CanvasStage({
         });
       }
 
+      // Draw Drag Mode Visual Aids: Active Screen Boundary, Snapping Guides & Coordinate HUD
+      const activeGrid = grids[activeTab];
+      const draggedGridId = dragStateRef.current?.gridId;
+      const targetDragGrid = draggedGridId ? grids[draggedGridId] : activeGrid;
+      const isDragModeActive = (activeTab === 'settings' && canvasDragMode) || (activeGrid && activeGrid.visible && activeGrid.mode === 'drag') || (canvasDragMode && isDraggingState);
+
+      // 1. Draw Smart Snapping Magnetic Guidelines
+      const currentDragSnap = activeDragGuidesRef.current;
+      if (currentDragSnap && currentDragSnap.guideLines && currentDragSnap.guideLines.length > 0 && isDraggingState) {
+        ctx.save();
+        currentDragSnap.guideLines.forEach((gl) => {
+          ctx.beginPath();
+          if (gl.type === 'vertical') {
+            ctx.moveTo(gl.position, 0);
+            ctx.lineTo(gl.position, outputHeight);
+          } else {
+            ctx.moveTo(0, gl.position);
+            ctx.lineTo(outputWidth, gl.position);
+          }
+          ctx.strokeStyle = gl.source === 'canvas' ? '#38bdf8' : '#06b6d4';
+          ctx.lineWidth = 2.5;
+          ctx.setLineDash([8, 6]);
+          ctx.shadowColor = 'rgba(6, 182, 212, 0.7)';
+          ctx.shadowBlur = 8;
+          ctx.stroke();
+        });
+        ctx.restore();
+      }
+
+      // 2. Screen Bounding Box, Brackets & Coordinate HUD
+      if (isDragModeActive && targetDragGrid && targetDragGrid.visible) {
+        const dim = getGridWorldDimensions(targetDragGrid);
+        const gx = targetDragGrid.offsetX;
+        const gy = targetDragGrid.offsetY;
+        const gw = dim.width;
+        const gh = dim.height;
+
+        ctx.save();
+        const isCurrentlyDragging = isDraggingState || (dragStateRef.current?.isDragging ?? false);
+        const pulse = 0.5 + 0.5 * Math.sin(time * 0.006);
+
+        // Active screen bounds box in drag mode
+        if (isCurrentlyDragging) {
+          ctx.strokeStyle = '#38bdf8';
+          ctx.lineWidth = 2.5;
+          ctx.setLineDash([]);
+        } else {
+          ctx.strokeStyle = `rgba(59, 130, 246, ${0.7 + 0.3 * pulse})`;
+          ctx.lineWidth = 2;
+          ctx.setLineDash([6, 4]);
+        }
+        ctx.strokeRect(gx - 1.5, gy - 1.5, gw + 3, gh + 3);
+        ctx.setLineDash([]);
+
+        // High-contrast Corner brackets
+        const bracketLen = Math.max(14, Math.min(28, Math.min(gw, gh) * 0.15));
+        ctx.strokeStyle = isCurrentlyDragging ? '#38bdf8' : '#60a5fa';
+        ctx.lineWidth = 3.5;
+        ctx.lineCap = 'square';
+
+        // Top-Left
+        ctx.beginPath();
+        ctx.moveTo(gx - 3, gy - 3 + bracketLen);
+        ctx.lineTo(gx - 3, gy - 3);
+        ctx.lineTo(gx - 3 + bracketLen, gy - 3);
+        ctx.stroke();
+
+        // Top-Right
+        ctx.beginPath();
+        ctx.moveTo(gx + gw + 3 - bracketLen, gy - 3);
+        ctx.lineTo(gx + gw + 3, gy - 3);
+        ctx.lineTo(gx + gw + 3, gy - 3 + bracketLen);
+        ctx.stroke();
+
+        // Bottom-Left
+        ctx.beginPath();
+        ctx.moveTo(gx - 3, gy + gh + 3 - bracketLen);
+        ctx.lineTo(gx - 3, gy + gh + 3);
+        ctx.lineTo(gx - 3 + bracketLen, gy + gh + 3);
+        ctx.stroke();
+
+        // Bottom-Right
+        ctx.beginPath();
+        ctx.moveTo(gx + gw + 3 - bracketLen, gy + gh + 3);
+        ctx.lineTo(gx + gw + 3, gy + gh + 3);
+        ctx.lineTo(gx + gw + 3, gy + gh + 3 - bracketLen);
+        ctx.stroke();
+
+        ctx.restore();
+
+        // ================= COORDINATE HUD BADGES (ONLY IN DRAG MODE) =================
+        const coordFont = '700 40px ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace';
+
+        const renderGridCoordBadge = (gridId: string, grid: GridModel, isActive: boolean) => {
+          const roundX = Math.round(grid.offsetX);
+          const roundY = Math.round(grid.offsetY);
+          const badgeText = `[${roundX};${roundY}]`;
+
+          ctx.save();
+          ctx.font = coordFont;
+          const textW = ctx.measureText(badgeText).width;
+
+          const badgePaddingX = 26;
+          const badgeH = 72;
+          const totalBadgeW = textW + badgePaddingX * 2;
+
+          const badgeX = grid.offsetX + 14;
+          const badgeY = grid.offsetY + 14;
+
+          if (isActive) {
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
+            ctx.shadowBlur = 14;
+            ctx.shadowOffsetY = 4;
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
+            ctx.strokeStyle = isCurrentlyDragging ? '#38bdf8' : '#3b82f6';
+            ctx.lineWidth = 3.5;
+          } else {
+            // Inactive grids: 30% lower intensity for clean secondary hierarchy
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.20)';
+            ctx.shadowBlur = 6;
+            ctx.shadowOffsetY = 2;
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.50)';
+            ctx.strokeStyle = 'rgba(148, 163, 184, 0.30)';
+            ctx.lineWidth = 2;
+          }
+
+          ctx.beginPath();
+          if (ctx.roundRect) {
+            ctx.roundRect(badgeX, badgeY, totalBadgeW, badgeH, 14);
+          } else {
+            ctx.rect(badgeX, badgeY, totalBadgeW, badgeH);
+          }
+          ctx.fill();
+          ctx.stroke();
+
+          // Reset shadow for crisp text rendering
+          ctx.shadowColor = 'transparent';
+          ctx.shadowBlur = 0;
+          ctx.shadowOffsetY = 0;
+
+          ctx.textAlign = 'left';
+          
+          const metrics = ctx.measureText(badgeText);
+          const actualAscent = metrics.actualBoundingBoxAscent;
+          const actualDescent = metrics.actualBoundingBoxDescent;
+          let textY = badgeY + badgeH / 2;
+
+          if (typeof actualAscent === 'number' && typeof actualDescent === 'number' && actualAscent > 0) {
+            ctx.textBaseline = 'alphabetic';
+            textY = badgeY + badgeH / 2 + (actualAscent - actualDescent) / 2;
+          } else {
+            ctx.textBaseline = 'middle';
+            textY = badgeY + badgeH / 2;
+          }
+
+          if (isActive) {
+            ctx.fillStyle = '#ffffff';
+            ctx.font = coordFont;
+            ctx.fillText(badgeText, badgeX + badgePaddingX, textY);
+          } else {
+            ctx.fillStyle = 'rgba(226, 232, 240, 0.55)';
+            ctx.font = coordFont;
+            ctx.fillText(badgeText, badgeX + badgePaddingX, textY);
+          }
+
+          ctx.restore();
+        };
+
+        const activeId = draggedGridId || activeTab;
+        // Draw inactive grids first
+        gridEntries.forEach(([gId, grid]) => {
+          if (!grid.visible || gId === activeId) return;
+          renderGridCoordBadge(gId, grid, false);
+        });
+
+        // Draw active/dragged grid on top
+        if (targetDragGrid) {
+          renderGridCoordBadge(activeId, targetDragGrid, true);
+        }
+      }
+
       animId = requestAnimationFrame(render);
     };
 
     animId = requestAnimationFrame(render);
     return () => cancelAnimationFrame(animId);
-  }, [grids, activeTab, outputWidth, outputHeight, highlightedGridId, hoveredMod, altLineStyle]);
+  }, [grids, activeTab, outputWidth, outputHeight, highlightedGridId, hoveredMod, altLineStyle, cableCurvature, canvasBackground, backgroundColor, gridCellSize, dotsSpacing, patternBrightness]);
 
   // Global keydown / keyup for modifiers
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Alt') altKeyRef.current = true;
       if (e.key === 'Shift') shiftKeyRef.current = true;
+
+      // Ignore arrow key interception if user is typing in an input or textarea
+      const target = e.target as HTMLElement | null;
+      const isInput = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable);
+
+      // Arrow keys movement in Drag mode
+      if (!isInput && activeTab !== 'settings') {
+        const activeGrid = grids[activeTab];
+        if (activeGrid && activeGrid.visible && activeGrid.mode === 'drag') {
+          if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+            e.preventDefault();
+
+            // Shift for fine 10px nudging, otherwise full module pitch
+            const stepX = e.shiftKey ? 10 : (activeGrid.moduleWidth || 100);
+            const stepY = e.shiftKey ? 10 : (activeGrid.moduleHeight || 100);
+
+            let newX = activeGrid.offsetX;
+            let newY = activeGrid.offsetY;
+
+            if (e.key === 'ArrowLeft') newX = Math.max(0, activeGrid.offsetX - stepX);
+            if (e.key === 'ArrowRight') newX = activeGrid.offsetX + stepX;
+            if (e.key === 'ArrowUp') newY = Math.max(0, activeGrid.offsetY - stepY);
+            if (e.key === 'ArrowDown') newY = activeGrid.offsetY + stepY;
+
+            if (newX !== activeGrid.offsetX || newY !== activeGrid.offsetY) {
+              onUpdateGrid(
+                activeTab,
+                (prev) => ({ ...prev, offsetX: newX, offsetY: newY }),
+                `Moved screen "${activeGrid.name}" to (${newX}, ${newY})`
+              );
+            }
+            return;
+          }
+        }
+      }
 
       // ESC: cancel active line, power group, or rect selection
       if (e.key === 'Escape') {
@@ -1265,6 +1656,11 @@ export function CanvasStage({
 
   // Canvas Click Handler
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (justDraggedRef.current) {
+      justDraggedRef.current = false;
+      return;
+    }
+
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
@@ -1274,7 +1670,6 @@ export function CanvasStage({
     const hit = findGridAtCanvasPos(canvasX, canvasY);
 
     if (activeTab === 'settings') {
-      if (hit) onSelectGrid(hit.gridId);
       return;
     }
 
@@ -1285,6 +1680,10 @@ export function CanvasStage({
 
     const currentGrid = grids[activeTab];
     if (!currentGrid) return;
+
+    if (currentGrid.mode === 'drag') {
+      return;
+    }
 
     const relX = canvasX - currentGrid.offsetX;
     const relY = canvasY - currentGrid.offsetY;
@@ -1620,8 +2019,24 @@ export function CanvasStage({
     }
   };
 
-  // Canvas Double Click Handler (Complete Line / Power Group)
-  const handleCanvasDoubleClick = () => {
+  // Canvas Double Click Handler (Switch to Grid from Canvas / Complete Line / Power Group)
+  const handleCanvasDoubleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (canvas) {
+      const rect = canvas.getBoundingClientRect();
+      const canvasX = (e.clientX - rect.left) / currentScale;
+      const canvasY = (e.clientY - rect.top) / currentScale;
+      const hit = findGridAtCanvasPos(canvasX, canvasY);
+
+      // If currently on the Canvas tab, double-clicking a grid switches to that grid's tab
+      if (activeTab === 'settings') {
+        if (hit) {
+          onSelectGrid(hit.gridId);
+        }
+        return;
+      }
+    }
+
     const currentGrid = grids[activeTab];
     if (!currentGrid) return;
     if (currentGrid.toolAction === 'erase') return;
@@ -1681,8 +2096,8 @@ export function CanvasStage({
         currentGrid.currentColorIndex !== null
           ? currentGrid.currentColorIndex
           : currentGrid.connections.length;
-      const namingMode = currentGrid.dataLineNamingMode || (currentGrid.useDefaultNames ? 'p.1-p.9' : 'none');
-      const { name, endName } = computeDataLineNames(namingMode, lineIndex, currentGrid.dataLinePrefix);
+      const namingMode = currentGrid.dataLineNamingMode || (currentGrid.useDefaultNames ? '1.1-1.9' : 'none');
+      const { name, endName } = computeDataLineNames(namingMode, lineIndex);
 
       onUpdateGrid(activeTab, (prev) => ({
         ...prev,
@@ -1690,7 +2105,9 @@ export function CanvasStage({
           ...prev.connections,
           {
             points: [...prev.currentConnection],
-            color: prev.currentColor || (altLineStyle ? '#000000' : MAIN_COLORS[lineIndex % MAIN_COLORS.length]),
+            color: altLineStyle
+              ? (prev.currentColor || '#000000')
+              : ((prev.currentColor && prev.currentColor !== '#000000') ? prev.currentColor : MAIN_COLORS[lineIndex % MAIN_COLORS.length]),
             colorIndex: lineIndex,
             name,
             endName
@@ -1704,15 +2121,141 @@ export function CanvasStage({
     }
   };
 
+  // Mouse Down for drag mode
+  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (e.button !== 0) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const canvasX = (e.clientX - rect.left) / currentScale;
+    const canvasY = (e.clientY - rect.top) / currentScale;
+
+    const hit = findGridAtCanvasPos(canvasX, canvasY);
+    const currentGrid = grids[activeTab];
+    const isDragAllowed = (activeTab === 'settings' && canvasDragMode) || currentGrid?.mode === 'drag' || (hit && hit.grid.mode === 'drag');
+
+    if (isDragAllowed && hit) {
+      if (hit.gridId !== activeTab && activeTab !== 'settings') {
+        onSelectGrid(hit.gridId);
+      }
+      dragStateRef.current = {
+        isDragging: true,
+        gridId: hit.gridId,
+        startMouseCanvasX: canvasX,
+        startMouseCanvasY: canvasY,
+        startOffsetX: hit.grid.offsetX,
+        startOffsetY: hit.grid.offsetY,
+        currentOffsetX: hit.grid.offsetX,
+        currentOffsetY: hit.grid.offsetY,
+        hasMoved: false,
+      };
+      setIsDraggingState(true);
+      activeDragGuidesRef.current = null;
+    }
+  };
+
+  // Window drag listeners (allows smooth dragging across the entire screen)
+  useEffect(() => {
+    const handleWindowMouseMove = (e: MouseEvent) => {
+      const dragState = dragStateRef.current;
+      if (!dragState || !dragState.isDragging) return;
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const canvasX = (e.clientX - rect.left) / currentScale;
+      const canvasY = (e.clientY - rect.top) / currentScale;
+
+      const deltaX = canvasX - dragState.startMouseCanvasX;
+      const deltaY = canvasY - dragState.startMouseCanvasY;
+
+      if (!dragState.hasMoved && (Math.abs(deltaX) > 2 || Math.abs(deltaY) > 2)) {
+        dragState.hasMoved = true;
+      }
+
+      const rawOffsetX = dragState.startOffsetX + deltaX;
+      const rawOffsetY = dragState.startOffsetY + deltaY;
+
+      const targetGrid = grids[dragState.gridId];
+      if (!targetGrid) return;
+
+      const snapResult = computeDragSnap(
+        targetGrid,
+        dragState.gridId,
+        rawOffsetX,
+        rawOffsetY,
+        grids,
+        outputWidth,
+        outputHeight,
+        currentScale,
+        dragOptions
+      );
+
+      dragState.currentOffsetX = snapResult.snappedX;
+      dragState.currentOffsetY = snapResult.snappedY;
+      activeDragGuidesRef.current = snapResult;
+
+      onUpdateGrid(dragState.gridId, (prev) => ({
+        ...prev,
+        offsetX: snapResult.snappedX,
+        offsetY: snapResult.snappedY,
+      }));
+    };
+
+    const handleWindowMouseUp = () => {
+      const dragState = dragStateRef.current;
+      if (!dragState || !dragState.isDragging) return;
+
+      if (dragState.hasMoved) {
+        justDraggedRef.current = true;
+        setTimeout(() => {
+          justDraggedRef.current = false;
+        }, 80);
+
+        const targetGrid = grids[dragState.gridId];
+        if (targetGrid) {
+          const movedX = dragState.currentOffsetX !== dragState.startOffsetX;
+          const movedY = dragState.currentOffsetY !== dragState.startOffsetY;
+          if (movedX || movedY) {
+            onUpdateGrid(
+              dragState.gridId,
+              (prev) => ({
+                ...prev,
+                offsetX: dragState.currentOffsetX,
+                offsetY: dragState.currentOffsetY,
+              }),
+              `Moved screen "${targetGrid.name}" to (${dragState.currentOffsetX}, ${dragState.currentOffsetY})`
+            );
+          }
+        }
+      }
+
+      dragStateRef.current = null;
+      activeDragGuidesRef.current = null;
+      setIsDraggingState(false);
+    };
+
+    window.addEventListener('mousemove', handleWindowMouseMove);
+    window.addEventListener('mouseup', handleWindowMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleWindowMouseMove);
+      window.removeEventListener('mouseup', handleWindowMouseUp);
+    };
+  }, [currentScale, grids, outputWidth, outputHeight, dragOptions, onUpdateGrid]);
+
   useEffect(() => {
     if (canvasRef.current) {
+      const isDrag = (activeTab === 'settings' && canvasDragMode) || grids[activeTab]?.mode === 'drag';
       canvasRef.current.style.cursor = getCanvasCursor(
         cursorOverGridRef.current,
+        cursorOverAnyGridRef.current,
+        isDraggingState,
         grids[activeTab]?.mode,
-        grids[activeTab]?.toolAction
+        grids[activeTab]?.toolAction,
+        isDrag
       );
     }
-  }, [activeTab, grids[activeTab]?.mode, grids[activeTab]?.toolAction]);
+  }, [activeTab, grids[activeTab]?.mode, grids[activeTab]?.toolAction, isDraggingState, canvasDragMode]);
 
   // Mouse Move on Canvas
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -1722,14 +2265,22 @@ export function CanvasStage({
     const canvasX = (e.clientX - rect.left) / currentScale;
     const canvasY = (e.clientY - rect.top) / currentScale;
 
-    onCursorMove({ x: canvasX, y: canvasY });
-
     const hit = findGridAtCanvasPos(canvasX, canvasY);
     const isOverActive = hit ? hit.gridId === activeTab : false;
+    const isOverAny = hit !== null;
     cursorOverGridRef.current = isOverActive;
+    cursorOverAnyGridRef.current = isOverAny;
 
     const currentGrid = grids[activeTab];
-    canvas.style.cursor = getCanvasCursor(isOverActive, currentGrid?.mode, currentGrid?.toolAction);
+    const isDrag = (activeTab === 'settings' && canvasDragMode) || currentGrid?.mode === 'drag';
+    canvas.style.cursor = getCanvasCursor(
+      isOverActive,
+      isOverAny,
+      isDraggingState || (dragStateRef.current?.isDragging ?? false),
+      currentGrid?.mode,
+      currentGrid?.toolAction,
+      isDrag
+    );
 
     if (hit && hit.gridId === activeTab) {
       setHoveredMod({ row: hit.row, col: hit.col });
@@ -1785,7 +2336,6 @@ export function CanvasStage({
   };
 
   const handleMouseLeave = () => {
-    onCursorMove(null);
     cursorOverGridRef.current = false;
     if (canvasRef.current) {
       canvasRef.current.style.cursor = 'default';
@@ -1793,25 +2343,128 @@ export function CanvasStage({
     setHoveredMod(null);
   };
 
+  // Edge-aware Mouse Wheel Scroll:
+  // - Wheel near left & right edges -> Vertical scroll (scrollTop)
+  // - Wheel near top & bottom edges -> Horizontal scroll (scrollLeft)
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      // If Ctrl / Meta is pressed (standard browser zoom / pinch gesture), let default browser zoom proceed
+      if (e.ctrlKey || e.metaKey) {
+        return;
+      }
+
+      const rect = container.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return;
+
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+
+      // Calculate distances from the mouse pointer to the 4 container edges
+      const distLeft = Math.max(0, mouseX);
+      const distRight = Math.max(0, rect.width - mouseX);
+      const distTop = Math.max(0, mouseY);
+      const distBottom = Math.max(0, rect.height - mouseY);
+
+      const minHorizontalEdgeDist = Math.min(distTop, distBottom); // Distance to top or bottom edge
+      const minVerticalEdgeDist = Math.min(distLeft, distRight);   // Distance to left or right edge
+
+      // Normalized proximity relative to dimensions
+      const normTopBottom = minHorizontalEdgeDist / rect.height;
+      const normLeftRight = minVerticalEdgeDist / rect.width;
+
+      // Wheel delta
+      const delta = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+      if (delta === 0) return;
+
+      if (normTopBottom < normLeftRight) {
+        // Closer to top or bottom edge -> Scroll Horizontally
+        container.scrollLeft += delta;
+      } else {
+        // Closer to left or right edge -> Scroll Vertically
+        container.scrollTop += delta;
+      }
+
+      e.preventDefault();
+    };
+
+    container.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      container.removeEventListener('wheel', handleWheel);
+    };
+  }, [containerRef]);
+
+  const rulerSize = showRulers ? RULER_THICKNESS : 0;
+
   return (
     <div
       id="canvasContainer"
       ref={containerRef}
-      className="flex-1 overflow-auto relative bg-[#1a1a1a]"
+      className="flex-1 overflow-auto relative select-none bg-[#151518]"
     >
-      <canvas
-        id="gridCanvas"
-        ref={canvasRef}
-        className="block absolute origin-top-left"
+      <div
+        className="relative"
         style={{
-          transform: `scale(${currentScale})`,
-          cursor: getCanvasCursor(cursorOverGridRef.current, grids[activeTab]?.mode, grids[activeTab]?.toolAction)
+          width: `${outputWidth * currentScale + rulerSize}px`,
+          height: `${outputHeight * currentScale + rulerSize}px`,
+          minWidth: '100%',
+          minHeight: '100%'
         }}
-        onClick={handleCanvasClick}
-        onDoubleClick={handleCanvasDoubleClick}
-        onMouseMove={handleMouseMove}
-        onMouseLeave={handleMouseLeave}
-      />
+      >
+        {/* Visual Coordinate Top Ruler (Corner + Horizontal Ruler) */}
+        {showRulers && (
+          <CanvasRulersTop
+            outputWidth={outputWidth}
+            outputHeight={outputHeight}
+            scale={currentScale}
+            rulerSize={RULER_THICKNESS}
+          />
+        )}
+
+        {/* Row: Left Vertical Ruler + Canvas Stage Area */}
+        <div className="flex">
+          {showRulers && (
+            <CanvasRulersLeft
+              outputWidth={outputWidth}
+              outputHeight={outputHeight}
+              scale={currentScale}
+              rulerSize={RULER_THICKNESS}
+            />
+          )}
+
+          <div
+            className="relative"
+            style={{
+              width: `${outputWidth * currentScale}px`,
+              height: `${outputHeight * currentScale}px`,
+              ...getCanvasWrapperBackgroundStyle(canvasBackground)
+            }}
+          >
+            <canvas
+              id="gridCanvas"
+              ref={canvasRef}
+              className="block absolute top-0 left-0 origin-top-left"
+              style={{
+                transform: `scale(${currentScale})`,
+                cursor: getCanvasCursor(
+                  cursorOverGridRef.current,
+                  cursorOverAnyGridRef.current,
+                  isDraggingState,
+                  grids[activeTab]?.mode,
+                  grids[activeTab]?.toolAction
+                )
+              }}
+              onMouseDown={handleMouseDown}
+              onClick={handleCanvasClick}
+              onDoubleClick={handleCanvasDoubleClick}
+              onMouseMove={handleMouseMove}
+              onMouseLeave={handleMouseLeave}
+            />
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

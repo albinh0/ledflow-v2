@@ -247,26 +247,7 @@ export function mergeGrids({
   // Primary template grid for styling defaults
   const primaryGrid = sourceGrids[0].grid;
 
-  // 1. Determine base unit module width and height
-  let baseWidth = primaryGrid.moduleWidth;
-  let baseHeight = primaryGrid.moduleHeight;
-
-  for (const { grid } of sourceGrids) {
-    baseWidth = gcd(baseWidth, grid.moduleWidth);
-    baseHeight = gcd(baseHeight, grid.moduleHeight);
-    if (grid.customModules && grid.customModules.length > 0) {
-      for (const cm of grid.customModules) {
-        baseWidth = gcd(baseWidth, cm.width);
-        baseHeight = gcd(baseHeight, cm.height);
-      }
-    }
-  }
-
-  // Ensure reasonable minimum base unit
-  baseWidth = Math.max(10, baseWidth);
-  baseHeight = Math.max(10, baseHeight);
-
-  // 2. Extract all active modules from all source grids with absolute world coordinates
+  // 1. Extract all active modules from all source grids with absolute world coordinates
   interface ExtractedModule {
     sourceGridId: string;
     origRow: number;
@@ -338,6 +319,40 @@ export function mergeGrids({
       )
     );
   }
+
+  // 2. Determine base unit module width and height via GCD across all modules and relative offsets
+  let baseWidth = primaryGrid.moduleWidth || 100;
+  let baseHeight = primaryGrid.moduleHeight || 100;
+
+  for (const { grid } of sourceGrids) {
+    if (grid.moduleWidth) baseWidth = gcd(baseWidth, grid.moduleWidth);
+    if (grid.moduleHeight) baseHeight = gcd(baseHeight, grid.moduleHeight);
+    if (grid.mergedSubGrids && grid.mergedSubGrids.length > 0) {
+      for (const sub of grid.mergedSubGrids) {
+        if (sub.moduleWidth) baseWidth = gcd(baseWidth, sub.moduleWidth);
+        if (sub.moduleHeight) baseHeight = gcd(baseHeight, sub.moduleHeight);
+      }
+    }
+    if (grid.customModules && grid.customModules.length > 0) {
+      for (const cm of grid.customModules) {
+        if (cm.width) baseWidth = gcd(baseWidth, cm.width);
+        if (cm.height) baseHeight = gcd(baseHeight, cm.height);
+      }
+    }
+  }
+
+  for (const mod of extractedModules) {
+    if (mod.width > 0) baseWidth = gcd(baseWidth, mod.width);
+    if (mod.height > 0) baseHeight = gcd(baseHeight, mod.height);
+    const relX = Math.abs(Math.round(mod.absX - minAbsX));
+    const relY = Math.abs(Math.round(mod.absY - minAbsY));
+    if (relX > 0) baseWidth = gcd(baseWidth, relX);
+    if (relY > 0) baseHeight = gcd(baseHeight, relY);
+  }
+
+  // Ensure base unit is at least 1px without arbitrary clamping
+  baseWidth = Math.max(1, Math.round(baseWidth));
+  baseHeight = Math.max(1, Math.round(baseHeight));
 
   const totalWidth = Math.max(baseWidth, maxAbsX - minAbsX);
   const totalHeight = Math.max(baseHeight, maxAbsY - minAbsY);
@@ -542,8 +557,7 @@ export function mergeGrids({
     connectionFont: primaryGrid.connectionFont,
     connectionFontSize: primaryGrid.connectionFontSize,
     useDefaultNames: primaryGrid.useDefaultNames,
-    dataLineNamingMode: primaryGrid.dataLineNamingMode || (primaryGrid.useDefaultNames ? 'p.1-p.9' : 'none'),
-    dataLinePrefix: primaryGrid.dataLinePrefix || '1',
+    dataLineNamingMode: primaryGrid.dataLineNamingMode || (primaryGrid.useDefaultNames ? '1.1-1.9' : 'none'),
     idType: primaryGrid.idType || 'row.col',
     idFont: primaryGrid.idFont || 'Arial, sans-serif',
     visible: true,

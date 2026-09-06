@@ -1,5 +1,5 @@
-import { GridModel, Point, DataLineConnection, PowerGroup, CustomModule, OverlappedModule, MergedSubGrid } from '../types';
-import { GROUP_COLORS, APP_VERSION } from '../constants';
+import { GridModel, Point, DataLineConnection, PowerGroup, CustomModule, OverlappedModule, MergedSubGrid, CanvasBackgroundStyle } from '../types';
+import { GROUP_COLORS, APP_VERSION, MAIN_COLORS } from '../constants';
 import { getModuleGeometry, getModuleId, getUncoveredSegments, isValidModuleCell } from './geometry';
 
 export function escapeXml(unsafe: string): string {
@@ -54,8 +54,7 @@ export function exportToXML(grids: Record<string, GridModel>, outputWidth: numbe
     xml.push(`        <connectionFont>${escapeXml(grid.connectionFont)}</connectionFont>`);
     xml.push(`        <connectionFontSize>${grid.connectionFontSize}</connectionFontSize>`);
     xml.push(`        <useDefaultNames>${grid.useDefaultNames}</useDefaultNames>`);
-    xml.push(`        <dataLineNamingMode>${grid.dataLineNamingMode || (grid.useDefaultNames ? '1A-1B' : 'none')}</dataLineNamingMode>`);
-    xml.push(`        <dataLinePrefix>${escapeXml(grid.dataLinePrefix || '1')}</dataLinePrefix>`);
+    xml.push(`        <dataLineNamingMode>${grid.dataLineNamingMode || (grid.useDefaultNames ? '1.1-1.9' : 'none')}</dataLineNamingMode>`);
     xml.push(`        <idType>${grid.idType || 'row.col'}</idType>`);
     xml.push(`        <idFont>${escapeXml(grid.idFont || 'Arial, sans-serif')}</idFont>`);
     xml.push(`        <visible>${grid.visible !== false}</visible>`);
@@ -125,7 +124,10 @@ export function exportToXML(grids: Record<string, GridModel>, outputWidth: numbe
     grid.connections.forEach((conn, index) => {
       const colorIndex = conn.colorIndex !== undefined ? conn.colorIndex : index;
       const prefixAttr = conn.prefix !== undefined ? ` prefix="${escapeXml(conn.prefix)}"` : '';
-      xml.push(`        <line index="${index}" colorIndex="${colorIndex}" color="${conn.color}" name="${escapeXml(conn.name || '')}" endName="${escapeXml(conn.endName || '')}"${prefixAttr}>`);
+      const exportColor = (conn.color && conn.color !== '#000000')
+        ? conn.color
+        : MAIN_COLORS[colorIndex % MAIN_COLORS.length];
+      xml.push(`        <line index="${index}" colorIndex="${colorIndex}" color="${exportColor}" name="${escapeXml(conn.name || '')}" endName="${escapeXml(conn.endName || '')}"${prefixAttr}>`);
       conn.points.forEach(point => {
         xml.push(`          <point row="${point.row}" col="${point.col}"/>`);
       });
@@ -165,18 +167,83 @@ export function exportToPNG(canvas: HTMLCanvasElement, outputWidth: number, outp
   link.click();
 }
 
+export interface CanvasBackgroundExportOptions {
+  canvasBackground?: CanvasBackgroundStyle;
+  backgroundColor?: string;
+  gridCellSize?: number;
+  dotsSpacing?: number;
+  patternBrightness?: number;
+}
+
+export function getPatternColors(brightnessPercent: number = 29): { bgColor: string; fgColor: string; fgAlpha: number } {
+  // brightnessPercent: 0 (pure black #000000) to 100 (pure white #FFFFFF)
+  // Default 29 corresponds to ~#4A4A4A (74/255)
+  const clamped = Math.max(0, Math.min(100, brightnessPercent));
+  const channel = Math.round((clamped / 100) * 255);
+  const hex = channel.toString(16).padStart(2, '0');
+  const bgColor = `#${hex}${hex}${hex}`;
+
+  // If background is dark (luminance < 128 / 50%), foreground elements should be bright/white
+  // If background is light (luminance >= 128 / 50%), foreground elements should be dark/black
+  if (channel < 128) {
+    // Dark bg -> white lines/dots with contrast
+    const contrastRatio = 1 - (channel / 255);
+    const alpha = 0.15 + contrastRatio * 0.25; // 0.15 to 0.40
+    return { bgColor, fgColor: '255, 255, 255', fgAlpha: Number(alpha.toFixed(2)) };
+  } else {
+    // Light bg -> black lines/dots with contrast
+    const contrastRatio = (channel / 255);
+    const alpha = 0.15 + contrastRatio * 0.25; // 0.15 to 0.40
+    return { bgColor, fgColor: '0, 0, 0', fgAlpha: Number(alpha.toFixed(2)) };
+  }
+}
+
 export function generateSVGString(
   grids: Record<string, GridModel>,
   outputWidth: number,
   outputHeight: number,
   altLineStyle = true,
-  includeCanvasBorder = true
+  includeCanvasBorder = true,
+  bgOptions?: CanvasBackgroundExportOptions
 ): string {
   const svg: string[] = [];
   svg.push('<?xml version="1.0" encoding="UTF-8"?>');
   svg.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${outputWidth}" height="${outputHeight}" viewBox="0 0 ${outputWidth} ${outputHeight}">`);
   svg.push('  <title>LedFlow Export</title>');
   svg.push(`  <desc>Created with LedFlow v${APP_VERSION}</desc>`);
+
+  const bgStyle = bgOptions?.canvasBackground || 'transparent';
+  const solidBg = bgOptions?.backgroundColor || '#151518';
+  const gridCellSize = Math.max(5, Math.min(200, bgOptions?.gridCellSize || 25));
+  const dotsSpacing = Math.max(5, Math.min(200, bgOptions?.dotsSpacing || 25));
+  const patternBrightness = bgOptions?.patternBrightness ?? 29;
+  const patternColors = getPatternColors(patternBrightness);
+
+  // Render SVG Canvas Background Layer
+  if (bgStyle === 'solid') {
+    svg.push(`  <!-- Solid Background -->`);
+    svg.push(`  <rect x="0" y="0" width="${outputWidth}" height="${outputHeight}" fill="${solidBg}"/>`);
+  } else if (bgStyle === 'grid') {
+    svg.push(`  <!-- Grid Background (${patternColors.bgColor} with ${gridCellSize}px cells) -->`);
+    svg.push(`  <defs>`);
+    svg.push(`    <pattern id="svg-bg-grid-pattern" width="${gridCellSize}" height="${gridCellSize}" patternUnits="userSpaceOnUse">`);
+    svg.push(`      <path d="M ${gridCellSize} 0 L 0 0 0 ${gridCellSize}" fill="none" stroke="rgba(${patternColors.fgColor}, ${patternColors.fgAlpha})" stroke-width="1"/>`);
+    svg.push(`    </pattern>`);
+    svg.push(`  </defs>`);
+    svg.push(`  <rect x="0" y="0" width="${outputWidth}" height="${outputHeight}" fill="${patternColors.bgColor}"/>`);
+    svg.push(`  <rect x="0" y="0" width="${outputWidth}" height="${outputHeight}" fill="url(#svg-bg-grid-pattern)"/>`);
+  } else if (bgStyle === 'dots') {
+    svg.push(`  <!-- Dots Background (${patternColors.bgColor} with ${dotsSpacing}px spacing) -->`);
+    const dotR = Math.max(1, Math.min(3, dotsSpacing * 0.05));
+    svg.push(`  <defs>`);
+    svg.push(`    <pattern id="svg-bg-dots-pattern" width="${dotsSpacing}" height="${dotsSpacing}" patternUnits="userSpaceOnUse">`);
+    svg.push(`      <circle cx="${dotsSpacing / 2}" cy="${dotsSpacing / 2}" r="${dotR}" fill="rgba(${patternColors.fgColor}, ${patternColors.fgAlpha * 1.4})"/>`);
+    svg.push(`    </pattern>`);
+    svg.push(`  </defs>`);
+    svg.push(`  <rect x="0" y="0" width="${outputWidth}" height="${outputHeight}" fill="${patternColors.bgColor}"/>`);
+    svg.push(`  <rect x="0" y="0" width="${outputWidth}" height="${outputHeight}" fill="url(#svg-bg-dots-pattern)"/>`);
+  }
+
   if (includeCanvasBorder) {
     svg.push('  <!-- Output Border -->');
     svg.push(`  <rect x="0" y="0" width="${outputWidth}" height="${outputHeight}" fill="none" stroke="#555555" stroke-width="2"/>`);
@@ -228,6 +295,9 @@ export function generateSVGString(
             const step = 20 - grid.hatchDensity;
             const lineIndex = conn.colorIndex !== undefined ? conn.colorIndex : index;
             const isForwardSlash = lineIndex % 2 === 0;
+            const hatchColor = (conn.color && conn.color !== '#000000')
+              ? conn.color
+              : MAIN_COLORS[lineIndex % MAIN_COLORS.length];
 
             conn.points.forEach(point => {
               if (!grid.gridState[point.row] || !grid.gridState[point.row][point.col]) return;
@@ -236,9 +306,9 @@ export function generateSVGString(
 
               patterns.push(`        <pattern id="${patternId}" patternUnits="userSpaceOnUse" width="${step}" height="${step}">`);
               if (isForwardSlash) {
-                patterns.push(`          <line x1="0" y1="0" x2="${step}" y2="${step}" stroke="${conn.color}" stroke-width="2" opacity="0.5"/>`);
+                patterns.push(`          <line x1="0" y1="0" x2="${step}" y2="${step}" stroke="${hatchColor}" stroke-width="2" opacity="0.5"/>`);
               } else {
-                patterns.push(`          <line x1="0" y1="${step}" x2="${step}" y2="0" stroke="${conn.color}" stroke-width="2" opacity="0.5"/>`);
+                patterns.push(`          <line x1="0" y1="${step}" x2="${step}" y2="0" stroke="${hatchColor}" stroke-width="2" opacity="0.5"/>`);
               }
               patterns.push(`        </pattern>`);
 
@@ -265,7 +335,7 @@ export function generateSVGString(
             grid.gridState[point.row] && grid.gridState[point.row][point.col]
           );
 
-          const lineColor = conn.color || '#000000';
+          const lineColor = '#000000';
 
           if (altLineStyle && visiblePoints.length >= 1) {
             const firstPoint = visiblePoints[0];
@@ -313,9 +383,9 @@ export function generateSVGString(
             svg.push(`      <polygon points="${arrowPoints.map(p => p.join(',')).join(' ')}" fill="${lineColor}"/>`);
           }
 
-          if (conn.points.length === 1) {
+          if (visiblePoints.length === 1) {
             if (conn.name || conn.endName) {
-              const first = conn.points[0];
+              const first = visiblePoints[0];
               const geom = getModuleGeometry(grid, first.row, first.col);
               const minSide = Math.min(geom.width, geom.height);
               const dataLineFontSize = Math.round(minSide * (grid.dataLineFontSizePercent / 100));
@@ -329,11 +399,17 @@ export function generateSVGString(
               } else if (conn.endName) {
                 labelText = conn.endName;
               }
-              svg.push(`      <text x="${labelX}" y="${labelY}" dy="0.35em" font-family="${grid.dataLineFont}" font-size="${dataLineFontSize}" font-weight="bold" fill="#000000" text-anchor="middle">${escapeXml(labelText)}</text>`);
+              if (labelText) {
+                svg.push(`      <text x="${labelX}" y="${labelY}" dy="0.35em" font-family="${grid.dataLineFont}" font-size="${dataLineFontSize}" font-weight="bold" fill="#000000" text-anchor="middle">${escapeXml(labelText)}</text>`);
+              }
             }
-          } else {
-            if (conn.name && conn.points.length > 0) {
-              const first = conn.points[0];
+          } else if (visiblePoints.length >= 2) {
+            const first = visiblePoints[0];
+            const second = visiblePoints[1];
+            const last = visiblePoints[visiblePoints.length - 1];
+            const secondLast = visiblePoints[visiblePoints.length - 2];
+
+            if (conn.name) {
               const geom = getModuleGeometry(grid, first.row, first.col);
               const minSide = Math.min(geom.width, geom.height);
               const dataLineFontSize = Math.round(minSide * (grid.dataLineFontSizePercent / 100));
@@ -341,28 +417,24 @@ export function generateSVGString(
               let labelX = geom.centerX;
               let labelY = geom.centerY;
 
-              if (conn.points.length > 1) {
-                const second = conn.points[1];
-                if (second.col > first.col) {
-                  labelX = geom.x + geom.width / 4;
-                  labelY = geom.y + 3 * geom.height / 4;
-                } else if (second.col < first.col) {
-                  labelX = geom.x + 3 * geom.width / 4;
-                  labelY = geom.y + geom.height / 4;
-                } else if (second.row > first.row) {
-                  labelX = geom.x + 3 * geom.width / 4;
-                  labelY = geom.y + geom.height / 4;
-                } else if (second.row < first.row) {
-                  labelX = geom.x + geom.width / 4;
-                  labelY = geom.y + 3 * geom.height / 4;
-                }
+              if (second.col > first.col) {
+                labelX = geom.x + geom.width / 4;
+                labelY = geom.y + 3 * geom.height / 4;
+              } else if (second.col < first.col) {
+                labelX = geom.x + 3 * geom.width / 4;
+                labelY = geom.y + geom.height / 4;
+              } else if (second.row > first.row) {
+                labelX = geom.x + 3 * geom.width / 4;
+                labelY = geom.y + geom.height / 4;
+              } else if (second.row < first.row) {
+                labelX = geom.x + geom.width / 4;
+                labelY = geom.y + 3 * geom.height / 4;
               }
 
               svg.push(`      <text x="${labelX}" y="${labelY}" dy="0.35em" font-family="${grid.dataLineFont}" font-size="${dataLineFontSize}" font-weight="bold" fill="#000000" text-anchor="middle">${escapeXml(conn.name)}</text>`);
             }
 
-            if (conn.endName && conn.points.length > 0) {
-              const last = conn.points[conn.points.length - 1];
+            if (conn.endName) {
               const geom = getModuleGeometry(grid, last.row, last.col);
               const minSide = Math.min(geom.width, geom.height);
               const dataLineFontSize = Math.round(minSide * (grid.dataLineFontSizePercent / 100));
@@ -370,15 +442,12 @@ export function generateSVGString(
               let labelX = geom.centerX;
               let labelY = geom.centerY;
 
-              if (conn.points.length > 1) {
-                const secondLast = conn.points[conn.points.length - 2];
-                if (secondLast.col > last.col || secondLast.row < last.row) {
-                  labelX = geom.x + geom.width / 4;
-                  labelY = geom.y + 3 * geom.height / 4;
-                } else if (secondLast.col < last.col || secondLast.row > last.row) {
-                  labelX = geom.x + 3 * geom.width / 4;
-                  labelY = geom.y + geom.height / 4;
-                }
+              if (secondLast.col > last.col || secondLast.row < last.row) {
+                labelX = geom.x + geom.width / 4;
+                labelY = geom.y + 3 * geom.height / 4;
+              } else if (secondLast.col < last.col || secondLast.row > last.row) {
+                labelX = geom.x + 3 * geom.width / 4;
+                labelY = geom.y + geom.height / 4;
               }
 
               svg.push(`      <text x="${labelX}" y="${labelY}" dy="0.35em" font-family="${grid.dataLineFont}" font-size="${dataLineFontSize}" font-weight="bold" fill="#000000" text-anchor="middle">${escapeXml(conn.endName)}</text>`);
@@ -635,9 +704,10 @@ export function exportToSVG(
   grids: Record<string, GridModel>,
   outputWidth: number,
   outputHeight: number,
-  altLineStyle = true
+  altLineStyle = true,
+  bgOptions?: CanvasBackgroundExportOptions
 ): void {
-  const svgContent = generateSVGString(grids, outputWidth, outputHeight, altLineStyle);
+  const svgContent = generateSVGString(grids, outputWidth, outputHeight, altLineStyle, true, bgOptions);
   const blob = new Blob([svgContent], { type: 'image/svg+xml' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
@@ -648,11 +718,14 @@ export function exportToSVG(
 }
 
 export interface PdfExportOptions {
-  orientation?: 'landscape' | 'portrait';
-  format?: 'a4' | 'a3' | 'letter' | 'auto';
   includeSummary?: boolean;
   includeCanvasBorder?: boolean;
   altLineStyle?: boolean;
+  canvasBackground?: CanvasBackgroundStyle;
+  backgroundColor?: string;
+  gridCellSize?: number;
+  dotsSpacing?: number;
+  patternBrightness?: number;
 }
 
 export async function exportToPDF(
@@ -669,12 +742,16 @@ export async function exportToPDF(
   }
 
   const altLineStyle = options.altLineStyle ?? true;
-  const includeCanvasBorder = options.includeCanvasBorder ?? true;
-  const orientation = options.orientation || (outputWidth >= outputHeight ? 'landscape' : 'portrait');
-  const format = options.format || 'a4';
+  const includeCanvasBorder = options.includeCanvasBorder ?? false;
   const includeSummary = options.includeSummary ?? true;
 
-  const svgContent = generateSVGString(grids, outputWidth, outputHeight, altLineStyle, includeCanvasBorder);
+  const svgContent = generateSVGString(grids, outputWidth, outputHeight, altLineStyle, includeCanvasBorder, {
+    canvasBackground: options.canvasBackground,
+    backgroundColor: options.backgroundColor,
+    gridCellSize: options.gridCellSize,
+    dotsSpacing: options.dotsSpacing,
+    patternBrightness: options.patternBrightness
+  });
   const parser = new DOMParser();
   const svgDoc = parser.parseFromString(svgContent, 'image/svg+xml');
   const svgElement = svgDoc.documentElement as unknown as SVGElement;
@@ -682,48 +759,24 @@ export async function exportToPDF(
   const { jsPDF } = await import('jspdf');
   const { svg2pdf } = await import('svg2pdf.js');
 
-  let pdfFormat: string | [number, number] = format;
-  if (format === 'auto') {
-    if (orientation === 'landscape') {
-      pdfFormat = [Math.max(outputWidth, outputHeight), Math.min(outputWidth, outputHeight)];
-    } else {
-      pdfFormat = [Math.min(outputWidth, outputHeight), Math.max(outputWidth, outputHeight)];
-    }
-  }
-
-  const doc = new jsPDF({
-    orientation,
-    unit: 'pt',
-    format: pdfFormat
-  });
-
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
-
-  // Clean white canvas background for PDF
-  doc.setFillColor(255, 255, 255);
-  doc.rect(0, 0, pageWidth, pageHeight, 'F');
-
-  const margin = 24;
-  const availW = pageWidth - margin * 2;
-  const availH = pageHeight - margin * 2;
-
-  // Prepare summary items (excluding output dimensions and not connected count)
+  // Prepare detailed technical specification items for engineering summary schedule
   let gridEntries = Object.entries(grids).filter(([_, g]) => g.visible !== false);
   if (gridEntries.length === 0) {
     gridEntries = Object.entries(grids);
   }
   const totalGridsCount = gridEntries.length;
 
-  const summaryItems = gridEntries.map(([_, grid]) => {
+  const summaryItems = gridEntries.map(([_, grid], index) => {
     const dataLinesCount = grid.connections.length;
     const powerLinesCount = grid.selectedGroups.length;
 
     let totalDataLineCabinets = 0;
+    const connectedDataPoints = new Set<string>();
     grid.connections.forEach((conn) => {
       conn.points.forEach((point) => {
         if (grid.gridState[point.row] && grid.gridState[point.row][point.col]) {
           totalDataLineCabinets++;
+          connectedDataPoints.add(`${point.row},${point.col}`);
         }
       });
     });
@@ -737,109 +790,149 @@ export async function exportToPDF(
       });
     });
 
+    let activeCabinets = 0;
+    for (let r = 0; r < grid.rows; r++) {
+      for (let c = 0; c < grid.cols; c++) {
+        if (grid.gridState[r] && grid.gridState[r][c]) {
+          activeCabinets++;
+        }
+      }
+    }
+
+    const totalCabinets = grid.cols * grid.rows;
+    const modW = grid.moduleWidth || 100;
+    const modH = grid.moduleHeight || 100;
+    const dimW = grid.cols * modW;
+    const dimH = grid.rows * modH;
+
+    const unroutedCount = Math.max(0, activeCabinets - connectedDataPoints.size);
     const avgDataLine = dataLinesCount > 0 ? (totalDataLineCabinets / dataLinesCount).toFixed(1) : '0';
     const avgPowerGroup = powerLinesCount > 0 ? (totalPowerGroupCabinets / powerLinesCount).toFixed(1) : '0';
 
     return {
+      id: String(index + 1).padStart(2, '0'),
       name: grid.name,
       cols: grid.cols,
       rows: grid.rows,
+      activeCabinets,
+      totalCabinets,
+      modW,
+      modH,
+      dimW,
+      dimH,
       dataLinesCount,
+      totalDataLineCabinets,
       avgDataLine,
       powerLinesCount,
-      avgPowerGroup
+      totalPowerGroupCabinets,
+      avgPowerGroup,
+      unroutedCount
     };
   });
 
-  if (!includeSummary || summaryItems.length === 0) {
-    // Fit diagram to full available space
-    const scale = Math.min(availW / outputWidth, availH / outputHeight);
-    const diagW = outputWidth * scale;
-    const diagH = outputHeight * scale;
-    const diagX = margin + (availW - diagW) / 2;
-    const diagY = margin + (availH - diagH) / 2;
+  const totalActiveCabinets = summaryItems.reduce((acc, it) => acc + it.activeCabinets, 0);
+  const totalAllCabinets = summaryItems.reduce((acc, it) => acc + it.totalCabinets, 0);
+  const totalDataLines = summaryItems.reduce((acc, it) => acc + it.dataLinesCount, 0);
+  const totalDataCabinets = summaryItems.reduce((acc, it) => acc + it.totalDataLineCabinets, 0);
+  const totalPowerGroups = summaryItems.reduce((acc, it) => acc + it.powerLinesCount, 0);
+  const totalPowerCabinets = summaryItems.reduce((acc, it) => acc + it.totalPowerGroupCabinets, 0);
+  const totalUnrouted = summaryItems.reduce((acc, it) => acc + it.unroutedCount, 0);
+  const globalAvgData = totalDataLines > 0 ? (totalDataCabinets / totalDataLines).toFixed(1) : '0';
+  const globalAvgPower = totalPowerGroups > 0 ? (totalPowerCabinets / totalPowerGroups).toFixed(1) : '0';
 
-    await svg2pdf(svgElement, doc, {
-      x: diagX,
-      y: diagY,
-      width: diagW,
-      height: diagH
-    });
-  } else {
-    // Determine optimal layout: Side-by-Side vs Top-and-Bottom
-    const N = summaryItems.length;
+  const globalStats = {
+    totalScreens: totalGridsCount,
+    totalActiveCabinets,
+    totalAllCabinets,
+    totalDataLines,
+    totalDataCabinets,
+    totalPowerGroups,
+    totalPowerCabinets,
+    totalUnrouted,
+    globalAvgData,
+    globalAvgPower
+  };
 
-    // Bottom layout calculation
-    const colCount_bottom = orientation === 'landscape'
-      ? (N <= 4 ? N : (N <= 8 ? 4 : (N <= 12 ? 4 : Math.min(6, N))))
-      : (N <= 3 ? N : (N <= 6 ? 3 : 4));
-    const rowCount_bottom = Math.ceil(N / Math.max(1, colCount_bottom));
-    const cardH_bottom = 34;
-    const rowGap_bottom = 6;
-    const summaryH_bottom = 32 + rowCount_bottom * (cardH_bottom + rowGap_bottom) + 8;
-    const gap_bottom = 12;
-    const diagAreaW_bottom = availW;
-    const diagAreaH_bottom = Math.max(80, availH - summaryH_bottom - gap_bottom);
-    const scale_bottom = Math.min(diagAreaW_bottom / outputWidth, diagAreaH_bottom / outputHeight);
+  const N = summaryItems.length;
+  const hasSummary = includeSummary && N > 0;
 
-    // Side layout calculation (mainly suitable for landscape)
-    const colsSide = N <= 7 ? 1 : 2;
-    const rowsSide = Math.ceil(N / colsSide);
-    const summaryW_side = colsSide === 1 ? Math.min(210, availW * 0.32) : Math.min(360, availW * 0.44);
-    const gap_side = 14;
-    const diagAreaW_side = Math.max(80, availW - summaryW_side - gap_side);
-    const diagAreaH_side = availH;
-    const scale_side = Math.min(diagAreaW_side / outputWidth, diagAreaH_side / outputHeight);
+  // Scale typography and table dimensions proportionally with canvas resolution
+  const scaleFactor = Math.max(0.85, Math.min(2.5, outputWidth / 1200));
 
-    // If landscape and side scale is better or equal, use side layout
-    const useSideLayout = orientation === 'landscape' && scale_side >= scale_bottom && rowsSide * 34 + 40 <= availH;
+  const colHeaderH = Math.round(28 * scaleFactor);
+  const rowH = Math.round(26 * scaleFactor);
+  const totalsH = Math.round(28 * scaleFactor);
+  const tableH = colHeaderH + N * rowH + totalsH;
 
-    if (useSideLayout) {
-      // Side-by-Side: Diagram on Left, Summary on Right
-      const diagW = outputWidth * scale_side;
-      const diagH = outputHeight * scale_side;
-      const diagX = margin + (diagAreaW_side - diagW) / 2;
-      const diagY = margin + (diagAreaH_side - diagH) / 2;
+  const margin = hasSummary ? Math.round(Math.max(16, Math.min(48, outputWidth * 0.02))) : 0;
+  const gap = hasSummary ? Math.round(Math.max(16, Math.min(36, outputWidth * 0.015))) : 0;
 
-      await svg2pdf(svgElement, doc, {
-        x: diagX,
-        y: diagY,
-        width: diagW,
-        height: diagH
-      });
+  const pageWidth = hasSummary ? outputWidth + margin * 2 : outputWidth;
+  const pageHeight = hasSummary ? outputHeight + margin * 2 + gap + tableH : outputHeight;
 
-      // Draw Summary Card on the Right
-      const sumX = margin + diagAreaW_side + gap_side;
-      const sumY = margin;
-      const sumW = summaryW_side;
-      const sumH = availH;
+  const doc = new jsPDF({
+    orientation: pageWidth >= pageHeight ? 'landscape' : 'portrait',
+    unit: 'pt',
+    format: [pageWidth, pageHeight]
+  });
 
-      drawPdfSummary(doc, sumX, sumY, sumW, sumH, totalGridsCount, summaryItems, 'side', colsSide);
-    } else {
-      // Top-and-Bottom: Diagram on Top, Summary on Bottom
-      const diagW = outputWidth * scale_bottom;
-      const diagH = outputHeight * scale_bottom;
-      const diagX = margin + (diagAreaW_bottom - diagW) / 2;
-      const diagY = margin + (diagAreaH_bottom - diagH) / 2;
+  // Clean white canvas background for PDF
+  doc.setFillColor(255, 255, 255);
+  doc.rect(0, 0, pageWidth, pageHeight, 'F');
 
-      await svg2pdf(svgElement, doc, {
-        x: diagX,
-        y: diagY,
-        width: diagW,
-        height: diagH
-      });
+  const diagX = hasSummary ? margin : 0;
+  const diagY = hasSummary ? margin : 0;
 
-      // Draw Summary Card at the Bottom
-      const sumX = margin;
-      const sumY = margin + diagAreaH_bottom + gap_bottom;
-      const sumW = availW;
-      const sumH = summaryH_bottom;
+  await svg2pdf(svgElement, doc, {
+    x: diagX,
+    y: diagY,
+    width: outputWidth,
+    height: outputHeight
+  });
 
-      drawPdfSummary(doc, sumX, sumY, sumW, sumH, totalGridsCount, summaryItems, 'bottom', colCount_bottom);
-    }
+  if (hasSummary) {
+    const sumX = margin;
+    const sumY = margin + outputHeight + gap;
+    const sumW = outputWidth;
+    const sumH = tableH;
+
+    drawPdfSummary(doc, sumX, sumY, sumW, sumH, outputWidth, outputHeight, summaryItems, globalStats, scaleFactor);
   }
 
   doc.save(`ledflow_export_${outputWidth}x${outputHeight}.pdf`);
+}
+
+interface SummaryItem {
+  id: string;
+  name: string;
+  cols: number;
+  rows: number;
+  activeCabinets: number;
+  totalCabinets: number;
+  modW: number;
+  modH: number;
+  dimW: number;
+  dimH: number;
+  dataLinesCount: number;
+  totalDataLineCabinets: number;
+  avgDataLine: string;
+  powerLinesCount: number;
+  totalPowerGroupCabinets: number;
+  avgPowerGroup: string;
+  unroutedCount: number;
+}
+
+interface GlobalStats {
+  totalScreens: number;
+  totalActiveCabinets: number;
+  totalAllCabinets: number;
+  totalDataLines: number;
+  totalDataCabinets: number;
+  totalPowerGroups: number;
+  totalPowerCabinets: number;
+  totalUnrouted: number;
+  globalAvgData: string;
+  globalAvgPower: string;
 }
 
 function drawPdfSummary(
@@ -848,92 +941,180 @@ function drawPdfSummary(
   y: number,
   width: number,
   height: number,
-  totalGrids: number,
-  items: Array<{
-    name: string;
-    cols: number;
-    rows: number;
-    dataLinesCount: number;
-    avgDataLine: string;
-    powerLinesCount: number;
-    avgPowerGroup: string;
-  }>,
-  layoutType: 'side' | 'bottom',
-  columnsCount: number = 1
+  outputWidth: number,
+  outputHeight: number,
+  items: SummaryItem[],
+  stats: GlobalStats,
+  scaleFactor: number
 ) {
-  // Card container on white page
-  doc.setFillColor(248, 250, 252); // slate-50
-  doc.setDrawColor(203, 213, 225); // slate-300
-  doc.setLineWidth(1);
-  doc.roundedRect(x, y, width, height, 6, 6, 'FD');
+  // ==========================================
+  // FORMAL TECHNICAL SPECIFICATION SCHEDULE TABLE
+  // ==========================================
+  const colHeaderH = Math.round(28 * scaleFactor);
+  const rowH = Math.round(26 * scaleFactor);
+  const totalsH = Math.round(28 * scaleFactor);
+  const actualTableH = colHeaderH + items.length * rowH + totalsH;
 
-  // Header accent bar & title
-  doc.setFillColor(2, 132, 199); // sky-600
-  doc.roundedRect(x + 10, y + 9, 3.5, 11, 1, 1, 'F');
+  const headerFontSize = Math.round(10 * scaleFactor);
+  const rowFontSize = Math.round(9.5 * scaleFactor);
+  const totalsFontSize = Math.round(10 * scaleFactor);
+  const padX = Math.round(8 * scaleFactor);
+
+  // Outer table container
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(30, 41, 59); // slate-800
+  doc.setLineWidth(Math.max(0.75, 1 * scaleFactor));
+  doc.rect(x, y, width, actualTableH, 'FD');
+
+  // Table Column Dimensions (Index column + 6 data columns)
+  const posW = Math.round(Math.max(34 * scaleFactor, width * 0.045));
+  const matrixW = Math.round(Math.max(70 * scaleFactor, width * 0.11));
+  const cabW = Math.round(Math.max(75 * scaleFactor, width * 0.12));
+  const sizeW = Math.round(Math.max(90 * scaleFactor, width * 0.14));
+  const remainingW = width - (posW + matrixW + cabW + sizeW);
+
+  const nameW = Math.round(Math.max(140 * scaleFactor, remainingW * 0.42));
+  const cablingW = remainingW - nameW;
+  const dataW = Math.round(cablingW * 0.5);
+  const powerW = cablingW - dataW;
+
+  const colX = [
+    x,
+    x + posW,
+    x + posW + nameW,
+    x + posW + nameW + matrixW,
+    x + posW + nameW + matrixW + cabW,
+    x + posW + nameW + matrixW + cabW + sizeW,
+    x + posW + nameW + matrixW + cabW + sizeW + dataW
+  ];
+
+  // Table Column Headers Row
+  const colHeaderY = y;
+  doc.setFillColor(241, 245, 249); // slate-100
+  doc.rect(x, colHeaderY, width, colHeaderH, 'F');
+
+  doc.setDrawColor(148, 163, 184); // slate-400
+  doc.setLineWidth(Math.max(0.5, 0.75 * scaleFactor));
+  doc.line(x, colHeaderY + colHeaderH, x + width, colHeaderY + colHeaderH);
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9.5);
-  doc.setTextColor(15, 23, 42); // slate-900
-  doc.text('SUMMARY', x + 18, y + 18);
+  doc.setFontSize(headerFontSize);
+  doc.setTextColor(30, 41, 59); // slate-800
 
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(71, 85, 105); // slate-600
-  doc.text(`Total LEDs: ${totalGrids}`, x + width - 12, y + 18, { align: 'right' });
+  const headerTextY = colHeaderY + colHeaderH / 2 + (headerFontSize * 0.35);
 
-  // Divider
-  doc.setDrawColor(226, 232, 240); // slate-200
-  doc.line(x + 10, y + 24, x + width - 10, y + 24);
+  // Note: First column header is intentionally left blank (no "POS" text)
+  doc.text('SCREEN ID', colX[1] + padX, headerTextY);
+  doc.text('COLS × ROWS', colX[2] + matrixW / 2, headerTextY, { align: 'center' });
+  doc.text('CABINETS', colX[3] + cabW / 2, headerTextY, { align: 'center' });
+  doc.text('SIZE (W×H)', colX[4] + sizeW / 2, headerTextY, { align: 'center' });
+  doc.text('DATA CABLING', colX[5] + padX, headerTextY);
+  doc.text('POWER GROUPS', colX[6] + padX, headerTextY);
 
-  const contentY = y + 30;
-  const colCount = Math.max(1, columnsCount);
-  const colGap = 8;
-  const sidePadding = 10;
-  const colWidth = (width - sidePadding * 2 - (colCount - 1) * colGap) / colCount;
+  // Vertical dividers in column headers
+  for (let c = 1; c < colX.length; c++) {
+    doc.setDrawColor(203, 213, 225);
+    doc.line(colX[c], colHeaderY, colX[c], colHeaderY + colHeaderH);
+  }
 
-  const rowCount = Math.ceil(items.length / colCount);
-  const availableContentH = height - 36;
-  const itemHeight = layoutType === 'side' && rowCount > 0
-    ? Math.min(34, Math.max(26, (availableContentH - (rowCount - 1) * 5) / rowCount))
-    : 32;
-  const rowGap = layoutType === 'side' && rowCount > 0
-    ? Math.max(3, Math.min(6, (availableContentH - rowCount * itemHeight) / Math.max(1, rowCount - 1)))
-    : 5;
-
+  // Table Data Rows
   items.forEach((item, idx) => {
-    const col = idx % colCount;
-    const row = Math.floor(idx / colCount);
-    const itemX = x + sidePadding + col * (colWidth + colGap);
-    const itemY = contentY + row * (itemHeight + rowGap);
+    const rowY = colHeaderY + colHeaderH + idx * rowH;
 
-    // Inner mini card for each LED screen
-    doc.setFillColor(255, 255, 255);
-    doc.setDrawColor(226, 232, 240);
-    doc.roundedRect(itemX, itemY, colWidth, itemHeight, 3.5, 3.5, 'FD');
+    // Row background
+    if (idx % 2 === 1) {
+      doc.setFillColor(248, 250, 252); // slate-50
+      doc.rect(x, rowY, width, rowH, 'F');
+    }
 
-    // Title: Grid Name & resolution
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(itemHeight < 30 ? 7.5 : 8);
-    doc.setTextColor(15, 23, 42);
+    // Row bottom divider
+    doc.setDrawColor(226, 232, 240); // slate-200
+    doc.setLineWidth(Math.max(0.5, 0.75 * scaleFactor));
+    doc.line(x, rowY + rowH, x + width, rowY + rowH);
 
-    const maxTitleChars = Math.max(8, Math.floor((colWidth - 14) / 4.5));
-    const titleText = `${item.name} (${item.cols}×${item.rows})`;
-    const truncatedTitle = titleText.length > maxTitleChars ? titleText.substring(0, maxTitleChars - 1) + '…' : titleText;
-    doc.text(truncatedTitle, itemX + 6, itemY + (itemHeight < 30 ? 8 : 9.5));
+    // Vertical column dividers
+    for (let c = 1; c < colX.length; c++) {
+      doc.line(colX[c], rowY, colX[c], rowY + rowH);
+    }
 
-    // Sub-lines (Data & Power)
+    const textY = rowY + rowH / 2 + (rowFontSize * 0.35);
+
+    // Row Position / Number (e.g., 01, 02...)
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(itemHeight < 30 ? 6.5 : 7);
-    doc.setTextColor(71, 85, 105);
+    doc.setFontSize(rowFontSize);
+    doc.setTextColor(100, 116, 139);
+    doc.text(item.id, colX[0] + posW / 2, textY, { align: 'center' });
 
-    let dataText = `Data: ${item.dataLinesCount}`;
-    if (item.dataLinesCount > 0) dataText += ` (avg. ${item.avgDataLine} cab.)`;
-    doc.text(dataText, itemX + 6, itemY + (itemHeight < 30 ? 17 : 19.5));
+    // Screen ID / Name
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(rowFontSize);
+    doc.setTextColor(15, 23, 42);
+    const maxNameChars = Math.max(14, Math.floor((nameW - padX * 2) / (rowFontSize * 0.58)));
+    const truncatedName = item.name.length > maxNameChars ? item.name.substring(0, maxNameChars - 1) + '…' : item.name;
+    doc.text(truncatedName, colX[1] + padX, textY);
 
-    let powerText = `Power: ${item.powerLinesCount}`;
-    if (item.powerLinesCount > 0) powerText += ` (avg. ${item.avgPowerGroup} cab.)`;
-    doc.text(powerText, itemX + 6, itemY + (itemHeight < 30 ? 25 : 28.5));
+    // Matrix
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(30, 41, 59);
+    doc.text(`${item.cols} × ${item.rows}`, colX[2] + matrixW / 2, textY, { align: 'center' });
+
+    // Cabinets
+    const cabText = item.activeCabinets === item.totalCabinets
+      ? `${item.activeCabinets} cab.`
+      : `${item.activeCabinets} / ${item.totalCabinets}`;
+    doc.text(cabText, colX[3] + cabW / 2, textY, { align: 'center' });
+
+    // Size
+    doc.text(`${item.dimW}×${item.dimH} px`, colX[4] + sizeW / 2, textY, { align: 'center' });
+
+    // Data Lines
+    const dataStr = item.dataLinesCount > 0
+      ? `${item.dataLinesCount} line${item.dataLinesCount === 1 ? '' : 's'} (avg ${item.avgDataLine})`
+      : '-';
+    doc.text(dataStr, colX[5] + padX, textY);
+
+    // Power Groups
+    const powerStr = item.powerLinesCount > 0
+      ? `${item.powerLinesCount} group${item.powerLinesCount === 1 ? '' : 's'} (avg ${item.avgPowerGroup})`
+      : '-';
+    doc.text(powerStr, colX[6] + padX, textY);
   });
+
+  // Table Totals / Summary Footer Row
+  const totalsY = colHeaderY + colHeaderH + items.length * rowH;
+  doc.setFillColor(226, 232, 240); // slate-200
+  doc.rect(x, totalsY, width, totalsH, 'F');
+
+  doc.setDrawColor(100, 116, 139); // slate-500
+  doc.setLineWidth(Math.max(0.75, 1 * scaleFactor));
+  doc.line(x, totalsY, x + width, totalsY);
+
+  for (let c = 1; c < colX.length; c++) {
+    doc.setDrawColor(148, 163, 184);
+    doc.setLineWidth(Math.max(0.5, 0.75 * scaleFactor));
+    doc.line(colX[c], totalsY, colX[c], totalsY + totalsH);
+  }
+
+  const totalsTextY = totalsY + totalsH / 2 + (totalsFontSize * 0.35);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(totalsFontSize);
+  doc.setTextColor(15, 23, 42);
+
+  doc.text('-', colX[0] + posW / 2, totalsTextY, { align: 'center' });
+  doc.text(`TOTALS (${stats.totalScreens} SCREEN${stats.totalScreens === 1 ? '' : 'S'})`, colX[1] + padX, totalsTextY);
+  doc.text('-', colX[2] + matrixW / 2, totalsTextY, { align: 'center' });
+  doc.text(`${stats.totalActiveCabinets} cab.`, colX[3] + cabW / 2, totalsTextY, { align: 'center' });
+  doc.text(`CANVAS ${outputWidth}×${outputHeight}`, colX[4] + sizeW / 2, totalsTextY, { align: 'center' });
+
+  const totalDataStr = stats.totalDataLines > 0
+    ? `${stats.totalDataLines} lines (avg ${stats.globalAvgData})`
+    : '-';
+  doc.text(totalDataStr, colX[5] + padX, totalsTextY);
+
+  const totalPowerStr = stats.totalPowerGroups > 0
+    ? `${stats.totalPowerGroups} group${stats.totalPowerGroups === 1 ? '' : 's'} (avg ${stats.globalAvgPower})`
+    : '-';
+  doc.text(totalPowerStr, colX[6] + padX, totalsTextY);
 }
 
 export function parseXmlProject(xmlText: string): { outputWidth: number; outputHeight: number; grids: Record<string, GridModel> } {
@@ -995,8 +1176,8 @@ export function parseXmlProject(xmlText: string): { outputWidth: number; outputH
     const connectionFont = safeGetXmlText(settings, 'connectionFont', 'Merriweather, serif');
     const connectionFontSize = safeGetXmlInt(settings, 'connectionFontSize', 21);
     const useDefaultNames = safeGetXmlText(settings, 'useDefaultNames', 'true') === 'true';
-    const dataLineNamingMode = (safeGetXmlText(settings, 'dataLineNamingMode', '') || (useDefaultNames ? '1A-1B' : 'none')) as any;
-    const dataLinePrefix = safeGetXmlText(settings, 'dataLinePrefix', '1');
+    const parsedNamingMode = safeGetXmlText(settings, 'dataLineNamingMode', '');
+    const dataLineNamingMode = (parsedNamingMode === 'p.1-p.9' ? '1.1-1.9' : (parsedNamingMode || (useDefaultNames ? '1.1-1.9' : 'none'))) as any;
     const idType = (safeGetXmlText(settings, 'idType', 'row.col') as any);
     const idFont = safeGetXmlText(settings, 'idFont', 'Arial, sans-serif');
 
@@ -1148,7 +1329,6 @@ export function parseXmlProject(xmlText: string): { outputWidth: number; outputH
       connectionFontSize,
       useDefaultNames,
       dataLineNamingMode,
-      dataLinePrefix,
       idType,
       idFont,
       visible,

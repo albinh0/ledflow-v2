@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { ArrowRight, ArrowDown } from 'lucide-react';
+import { ArrowRight, ArrowDown, Layers, X, Plus, Minus, Grid, Sparkles, Check } from 'lucide-react';
 import { ModuleSizePreset, AnchorPoint, GridModel, Point, GridPlacementOption } from '../types';
 import { getModuleId, calculateModuleGeometry, getModuleGeometry, isValidModuleCell } from '../utils/geometry';
 import {
@@ -32,35 +32,47 @@ export function ConfirmDeleteModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/75 backdrop-blur-xs z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div
-        className="bg-[#242424] border border-[#3a3a3a] rounded-2xl p-6 min-w-[380px] max-w-[440px] shadow-2xl font-sans"
+        className="bg-[#181820] border border-[#2c2c3a] rounded-2xl p-5 sm:p-6 w-full max-w-[420px] shadow-2xl font-sans"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center gap-3 mb-3 text-red-400 font-semibold text-sm">
-          <span className="material-symbols-outlined text-[24px]">delete_forever</span>
-          <span>{title}</span>
-        </div>
-        <p className="text-xs text-slate-300 mb-6 leading-relaxed whitespace-pre-wrap">
-          {message}
-        </p>
-        <div className="flex gap-2.5 justify-end">
+        <div className="flex items-center justify-between pb-3 border-b border-[#242430] mb-3.5">
+          <div className="flex items-center gap-2.5 text-red-400 font-semibold text-sm">
+            <div className="w-8 h-8 rounded-lg bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-400 shrink-0">
+              <span className="material-symbols-outlined text-[18px]">delete_forever</span>
+            </div>
+            <span className="text-white font-semibold text-sm">{title}</span>
+          </div>
           <button
             type="button"
-            className="px-4 py-2 border border-[#404040] rounded-xl text-xs font-medium text-[#a0a0a0] hover:bg-[#333] hover:text-white transition-colors"
+            onClick={onClose}
+            className="w-7 h-7 rounded-lg text-[#88889a] hover:text-white hover:bg-[#262634] flex items-center justify-center transition-colors cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <p className="text-xs text-[#a0a0b2] mb-5 leading-relaxed whitespace-pre-wrap">
+          {message}
+        </p>
+        <div className="flex gap-2 justify-end">
+          <button
+            type="button"
+            className="h-8.5 px-4 border border-[#2e2e3e] bg-[#1a1a24] hover:bg-[#252535] rounded-lg text-xs font-medium text-slate-300 hover:text-white transition-colors cursor-pointer"
             onClick={onClose}
           >
             Cancel
           </button>
           <button
             type="button"
-            className="px-5 py-2 bg-red-600 border border-red-500 rounded-xl text-xs font-semibold text-white hover:bg-red-500 transition-colors shadow-lg shadow-red-600/30"
+            className="h-8.5 px-4 bg-red-600 border border-red-500 rounded-lg text-xs font-semibold text-white hover:bg-red-500 transition-colors shadow-lg shadow-red-600/30 cursor-pointer flex items-center gap-1.5"
             onClick={() => {
               onConfirm();
               onClose();
             }}
           >
-            Delete
+            <span className="material-symbols-outlined text-[15px]">delete</span>
+            <span>Delete</span>
           </button>
         </div>
       </div>
@@ -78,17 +90,32 @@ export function RenameModal({ isOpen, initialName, onClose, onConfirm }: RenameM
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/75 backdrop-blur-xs z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div
-        className="bg-[#2a2a2a] border border-[#404040] rounded-xl p-6 min-w-[400px] shadow-2xl font-sans"
+        className="bg-[#181820] border border-[#2c2c3a] rounded-2xl p-5 sm:p-6 w-full max-w-[400px] shadow-2xl font-sans"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="text-base font-semibold mb-4 pb-3 border-b border-[#303030] text-[#e0e0e0]">
-          Rename Grid
+        <div className="flex items-center justify-between pb-3 border-b border-[#242430] mb-4">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/30 flex items-center justify-center text-blue-400 shrink-0">
+              <span className="material-symbols-outlined text-[18px]">edit</span>
+            </div>
+            <div>
+              <h2 className="text-sm font-semibold text-white">Rename Screen</h2>
+              <p className="text-[11px] text-[#8e8ea0]">Enter a new label for this screen</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-7 h-7 rounded-lg text-[#88889a] hover:text-white hover:bg-[#262634] flex items-center justify-center transition-colors cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
         <input
           type="text"
-          className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#404040] rounded text-[#e0e0e0] text-xs mb-5 outline-none focus:border-[#5a7fa5] focus:ring-2 focus:ring-[#5a7fa5]/20 font-mono"
+          className="w-full h-8.5 px-3 bg-[#101014] border border-[#282838] focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded-lg text-slate-100 text-xs mb-5 outline-none font-mono"
           value={name}
           onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => {
@@ -100,22 +127,22 @@ export function RenameModal({ isOpen, initialName, onClose, onConfirm }: RenameM
           }}
           autoFocus
         />
-        <div className="flex gap-2.5 justify-end">
+        <div className="flex gap-2 justify-end">
           <button
             type="button"
-            className="px-5 py-2 border border-[#404040] rounded-md text-sm font-medium text-[#909090] hover:bg-[#333] hover:text-[#b0b0b0] transition-colors"
+            className="h-8.5 px-4 border border-[#2e2e3e] bg-[#1a1a24] hover:bg-[#252535] rounded-lg text-xs font-medium text-slate-300 hover:text-white transition-colors cursor-pointer"
             onClick={onClose}
           >
             Cancel
           </button>
           <button
             type="button"
-            className="px-5 py-2 bg-[#5a7fa5] border border-[#5a7fa5] rounded-md text-sm font-medium text-white hover:bg-[#6a8fb5] transition-colors"
+            className="h-8.5 px-4 bg-blue-600 border border-blue-500 rounded-lg text-xs font-semibold text-white hover:bg-blue-500 transition-colors shadow-lg shadow-blue-600/30 cursor-pointer flex items-center gap-1"
             onClick={() => {
               if (name.trim()) onConfirm(name.trim());
             }}
           >
-            OK
+            <span>Save</span>
           </button>
         </div>
       </div>
@@ -146,6 +173,32 @@ export function NewGridModal({ isOpen, defaultName, onClose, onConfirm }: NewGri
   const [moduleWidth, setModuleWidth] = useState(100);
   const [moduleHeight, setModuleHeight] = useState(100);
   const [placement, setPlacement] = useState<GridPlacementOption>('right');
+
+  const steppingRef = useMemo(() => ({ current: null as { timer: any; interval: any } | null }), []);
+
+  const startStepping = (action: () => void, isFast = false) => {
+    action();
+    const intervalTime = isFast ? 20 : 60;
+    const timer = setTimeout(() => {
+      const interval = setInterval(() => {
+        action();
+      }, intervalTime);
+      steppingRef.current = { timer, interval };
+    }, 350);
+    steppingRef.current = { timer, interval: null };
+  };
+
+  const stopStepping = () => {
+    if (steppingRef.current) {
+      if (steppingRef.current.timer) clearTimeout(steppingRef.current.timer);
+      if (steppingRef.current.interval) clearInterval(steppingRef.current.interval);
+      steppingRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    return () => stopStepping();
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
@@ -182,237 +235,329 @@ export function NewGridModal({ isOpen, defaultName, onClose, onConfirm }: NewGri
     onConfirm(finalCols, finalRows, finalName, moduleSize, moduleWidth || 100, moduleHeight || 100, placement);
   };
 
+  // Calculate aspect ratio string
+  const getAspectRatioString = (w: number, h: number) => {
+    if (!w || !h) return '';
+    const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b));
+    const divisor = gcd(Math.round(w), Math.round(h));
+    const rW = Math.round(w) / divisor;
+    const rH = Math.round(h) / divisor;
+    if (rW > 50 || rH > 50) {
+      return `${(w / h).toFixed(2)}:1`;
+    }
+    return `${rW}:${rH}`;
+  };
+
+  const totalWidth = cols * moduleWidth;
+  const totalHeight = rows * moduleHeight;
+  const totalModules = cols * rows;
+  const aspectRatio = getAspectRatioString(totalWidth, totalHeight);
+
   return (
-    <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/75 backdrop-blur-xs z-50 flex items-center justify-center p-4 select-none" onClick={onClose}>
       <div
-        className="bg-[#2a2a2a] border border-[#404040] rounded-xl p-6 min-w-[420px] shadow-2xl font-sans"
+        className="bg-[#181820] border border-[#2c2c3a] rounded-2xl p-5 w-full max-w-[420px] shadow-2xl font-sans text-[#e0e0ea]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="text-base font-semibold mb-4 pb-3 border-b border-[#303030] text-[#e0e0e0]">
-          Create New Grid
-        </div>
-
-        {/* Row 1: Name + Size */}
-        <div className="flex gap-4 my-3 items-start">
-          <div className="flex-1">
-            <span className="text-[10px] uppercase tracking-wider font-semibold text-[#64748b] ml-0.5 mb-1.5 block">
-              Grid Name
-            </span>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="LED_1"
-              className="w-full h-10 px-3 text-sm bg-[#1E1E1E] border border-[#333] rounded-xl text-[#f1f5f9] font-mono outline-none focus:border-[#3B82F6]"
-            />
-          </div>
-          <div className="flex-1">
-            <span className="text-[10px] uppercase tracking-wider font-semibold text-[#64748b] ml-0.5 mb-1.5 block">
-              Size
-            </span>
-            <select
-              value={moduleSize}
-              onChange={(e) => handleSizePresetChange(e.target.value as ModuleSizePreset)}
-              className="w-full h-10 px-3 bg-[#1E1E1E] border border-[#333] rounded-xl text-[#f1f5f9] text-sm outline-none focus:border-[#3B82F6]"
-            >
-              <option value="square">Square 1:1</option>
-              <option value="horizontal">Horizontal 2:1</option>
-              <option value="vertical">Vertical 1:2</option>
-              <option value="custom">Custom</option>
-            </select>
-          </div>
-        </div>
-
-        {/* Row 2: Columns + Width */}
-        <div className="grid grid-cols-2 gap-4 mb-2">
-          <div>
-            <span className="text-[10px] uppercase tracking-wider font-semibold text-[#64748b] ml-0.5 mb-1.5 block">
-              Columns
-            </span>
-            <div className="flex items-center bg-[#1E1E1E] border border-[#333] rounded-xl overflow-hidden">
-              <button
-                type="button"
-                className="p-2 text-[#94a3b8] hover:bg-[#2D2D2D] transition-colors flex items-center justify-center cursor-pointer"
-                onClick={() => setCols((prev) => Math.max(1, prev - 1))}
-              >
-                <span className="material-symbols-outlined text-[18px]">remove</span>
-              </button>
-              <input
-                type="number"
-                min={1}
-                max={100}
-                value={cols}
-                onChange={(e) => setCols(parseInt(e.target.value, 10) || 1)}
-                className="w-full bg-transparent border-none text-center font-mono text-sm text-[#f1f5f9] py-2 px-1 outline-none stepper-input [appearance:textfield]"
-              />
-              <button
-                type="button"
-                className="p-2 text-[#94a3b8] hover:bg-[#2D2D2D] transition-colors flex items-center justify-center cursor-pointer"
-                onClick={() => setCols((prev) => Math.min(100, prev + 1))}
-              >
-                <span className="material-symbols-outlined text-[18px]">add</span>
-              </button>
+        {/* Header */}
+        <div className="flex items-center justify-between pb-3 border-b border-[#242430] mb-3.5">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 shrink-0">
+              <Layers className="w-4.5 h-4.5" />
             </div>
+            <h2 className="text-sm font-bold text-white tracking-tight">Create New Grid</h2>
           </div>
-
-          <div style={{ visibility: moduleSize === 'custom' ? 'visible' : 'hidden' }}>
-            <span className="text-[10px] uppercase tracking-wider font-semibold text-[#64748b] ml-0.5 mb-1.5 block">
-              Width
-            </span>
-            <div className="flex items-center bg-[#1E1E1E] border border-[#333] rounded-xl overflow-hidden">
-              <button
-                type="button"
-                className="p-2 text-[#94a3b8] hover:bg-[#2D2D2D] transition-colors flex items-center justify-center cursor-pointer"
-                onClick={() => setModuleWidth((prev) => Math.max(10, prev - 2))}
-              >
-                <span className="material-symbols-outlined text-[18px]">remove</span>
-              </button>
-              <input
-                type="number"
-                min={10}
-                max={9999}
-                step={2}
-                value={moduleWidth}
-                onChange={(e) => setModuleWidth(parseInt(e.target.value, 10) || 100)}
-                className="w-full bg-transparent border-none text-center font-mono text-sm text-[#f1f5f9] py-2 px-1 outline-none stepper-input [appearance:textfield]"
-              />
-              <button
-                type="button"
-                className="p-2 text-[#94a3b8] hover:bg-[#2D2D2D] transition-colors flex items-center justify-center cursor-pointer"
-                onClick={() => setModuleWidth((prev) => Math.min(9999, prev + 2))}
-              >
-                <span className="material-symbols-outlined text-[18px]">add</span>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Row 3: Rows + Height */}
-        <div className="grid grid-cols-2 gap-4 mb-4">
-          <div>
-            <span className="text-[10px] uppercase tracking-wider font-semibold text-[#64748b] ml-0.5 mb-1.5 block">
-              Rows
-            </span>
-            <div className="flex items-center bg-[#1E1E1E] border border-[#333] rounded-xl overflow-hidden">
-              <button
-                type="button"
-                className="p-2 text-[#94a3b8] hover:bg-[#2D2D2D] transition-colors flex items-center justify-center cursor-pointer"
-                onClick={() => setRows((prev) => Math.max(1, prev - 1))}
-              >
-                <span className="material-symbols-outlined text-[18px]">remove</span>
-              </button>
-              <input
-                type="number"
-                min={1}
-                max={100}
-                value={rows}
-                onChange={(e) => setRows(parseInt(e.target.value, 10) || 1)}
-                className="w-full bg-transparent border-none text-center font-mono text-sm text-[#f1f5f9] py-2 px-1 outline-none stepper-input [appearance:textfield]"
-              />
-              <button
-                type="button"
-                className="p-2 text-[#94a3b8] hover:bg-[#2D2D2D] transition-colors flex items-center justify-center cursor-pointer"
-                onClick={() => setRows((prev) => Math.min(100, prev + 1))}
-              >
-                <span className="material-symbols-outlined text-[18px]">add</span>
-              </button>
-            </div>
-          </div>
-
-          <div style={{ visibility: moduleSize === 'custom' ? 'visible' : 'hidden' }}>
-            <span className="text-[10px] uppercase tracking-wider font-semibold text-[#64748b] ml-0.5 mb-1.5 block">
-              Height
-            </span>
-            <div className="flex items-center bg-[#1E1E1E] border border-[#333] rounded-xl overflow-hidden">
-              <button
-                type="button"
-                className="p-2 text-[#94a3b8] hover:bg-[#2D2D2D] transition-colors flex items-center justify-center cursor-pointer"
-                onClick={() => setModuleHeight((prev) => Math.max(10, prev - 2))}
-              >
-                <span className="material-symbols-outlined text-[18px]">remove</span>
-              </button>
-              <input
-                type="number"
-                min={10}
-                max={9999}
-                step={2}
-                value={moduleHeight}
-                onChange={(e) => setModuleHeight(parseInt(e.target.value, 10) || 100)}
-                className="w-full bg-transparent border-none text-center font-mono text-sm text-[#f1f5f9] py-2 px-1 outline-none stepper-input [appearance:textfield]"
-              />
-              <button
-                type="button"
-                className="p-2 text-[#94a3b8] hover:bg-[#2D2D2D] transition-colors flex items-center justify-center cursor-pointer"
-                onClick={() => setModuleHeight((prev) => Math.min(9999, prev + 2))}
-              >
-                <span className="material-symbols-outlined text-[18px]">add</span>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Row 4: Placement relative to existing grids */}
-        <div className="mb-5 pt-3 border-t border-[#383838]">
-          <span className="text-[10px] uppercase tracking-wider font-semibold text-[#64748b] ml-0.5 mb-2 block">
-            Placement Relative to Existing Grids
-          </span>
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              onClick={() => setPlacement('right')}
-              className={`flex items-center gap-3 p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-                placement === 'right'
-                  ? 'bg-[#1e293b] border-[#3B82F6] text-white ring-1 ring-[#3B82F6]'
-                  : 'bg-[#1E1E1E] border-[#333] text-[#94a3b8] hover:bg-[#262626] hover:text-[#e2e8f0]'
-              }`}
-            >
-              <div className={`p-2 rounded-lg flex items-center justify-center shrink-0 ${
-                placement === 'right' ? 'bg-[#3B82F6] text-white' : 'bg-[#2A2A2A] text-[#94a3b8]'
-              }`}>
-                <ArrowRight className="w-4 h-4" />
-              </div>
-              <div className="min-w-0">
-                <div className="text-xs font-semibold text-[#f1f5f9] truncate">Right of All</div>
-                <div className="text-[10px] text-[#64748b] truncate">To the right of all grids</div>
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setPlacement('bottom')}
-              className={`flex items-center gap-3 p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-                placement === 'bottom'
-                  ? 'bg-[#1e293b] border-[#3B82F6] text-white ring-1 ring-[#3B82F6]'
-                  : 'bg-[#1E1E1E] border-[#333] text-[#94a3b8] hover:bg-[#262626] hover:text-[#e2e8f0]'
-              }`}
-            >
-              <div className={`p-2 rounded-lg flex items-center justify-center shrink-0 ${
-                placement === 'bottom' ? 'bg-[#3B82F6] text-white' : 'bg-[#2A2A2A] text-[#94a3b8]'
-              }`}>
-                <ArrowDown className="w-4 h-4" />
-              </div>
-              <div className="min-w-0">
-                <div className="text-xs font-semibold text-[#f1f5f9] truncate">Below All</div>
-                <div className="text-[10px] text-[#64748b] truncate">Below all existing grids</div>
-              </div>
-            </button>
-          </div>
-        </div>
-
-        <div className="flex gap-2.5 justify-end">
           <button
             type="button"
-            className="px-5 py-2 border border-[#404040] rounded-md text-sm font-medium text-[#909090] hover:bg-[#333] hover:text-[#b0b0b0] transition-colors"
+            onClick={onClose}
+            className="w-7 h-7 rounded-lg text-[#88889a] hover:text-white hover:bg-[#262634] flex items-center justify-center transition-colors cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Inputs */}
+        <div className="space-y-3 mb-3.5">
+          {/* Row 1: Screen Name & Module Preset (with Custom Size nested directly under preset) */}
+          <div className="grid grid-cols-2 gap-2.5 items-start">
+            {/* Screen Name */}
+            <div>
+              <label className="panel-label mb-1.5 ml-0.5">
+                SCREEN NAME
+              </label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="LED_1"
+                className="w-full h-8 px-2.5 text-xs bg-[#101014] border border-[#272736] focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded-lg text-slate-100 font-mono outline-none transition-colors"
+              />
+            </div>
+
+            {/* Size Preset & Nested Custom Size */}
+            <div className="space-y-2.5">
+              <div>
+                <label className="panel-label mb-1.5 ml-0.5">
+                  SIZE PRESET
+                </label>
+                <div className="grid grid-cols-4 gap-0.5 p-0.5 bg-[#101014] rounded-lg border border-[#272736] h-8 items-center">
+                  {(
+                    [
+                      { id: 'square', label: '1:1' },
+                      { id: 'horizontal', label: '2:1' },
+                      { id: 'vertical', label: '1:2' },
+                      { id: 'custom', label: 'Custom' }
+                    ] as const
+                  ).map((preset) => (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={() => handleSizePresetChange(preset.id)}
+                      className={`h-6.5 rounded-md text-[10.5px] font-medium flex items-center justify-center transition-all cursor-pointer truncate ${
+                        moduleSize === preset.id
+                          ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                          : 'text-[#88889a] hover:text-[#e0e0ec] hover:bg-[#202028]'
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Custom Module Dimensions (compact, exactly under Size Preset) */}
+              {moduleSize === 'custom' && (
+                <div>
+                  <label className="panel-label mb-1.5 ml-0.5">
+                    CUSTOM SIZE (PX)
+                  </label>
+                  <div className="flex items-center h-8 bg-[#101014] border border-[#272736] focus-within:border-blue-500 rounded-lg overflow-hidden">
+                    {/* Width Stepper */}
+                    <div className="flex-1 min-w-0 flex items-center h-full px-0.5">
+                      <button
+                        type="button"
+                        title="Decrease Width"
+                        className="w-5 h-6 rounded flex items-center justify-center text-[#88889a] hover:text-white hover:bg-[#20202a] active:scale-95 transition-all cursor-pointer shrink-0"
+                        onMouseDown={() => startStepping(() => setModuleWidth((prev) => Math.max(10, prev - 2)), true)}
+                        onMouseUp={stopStepping}
+                        onMouseLeave={stopStepping}
+                      >
+                        <Minus className="w-3 h-3" />
+                      </button>
+                      <input
+                        type="number"
+                        min={10}
+                        max={9999}
+                        step={2}
+                        value={moduleWidth}
+                        title="Width (px)"
+                        onChange={(e) => setModuleWidth(Math.max(10, parseInt(e.target.value, 10) || 100))}
+                        className="flex-1 min-w-0 h-full bg-transparent text-center font-mono text-xs text-slate-100 outline-none border-none p-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      />
+                      <button
+                        type="button"
+                        title="Increase Width"
+                        className="w-5 h-6 rounded flex items-center justify-center text-[#88889a] hover:text-white hover:bg-[#20202a] active:scale-95 transition-all cursor-pointer shrink-0"
+                        onMouseDown={() => startStepping(() => setModuleWidth((prev) => Math.min(9999, prev + 2)), true)}
+                        onMouseUp={stopStepping}
+                        onMouseLeave={stopStepping}
+                      >
+                        <Plus className="w-3 h-3" />
+                      </button>
+                    </div>
+
+                    {/* Divider */}
+                    <div className="w-[1px] h-3.5 bg-[#282838] shrink-0" />
+
+                    {/* Height Stepper */}
+                    <div className="flex-1 min-w-0 flex items-center h-full px-0.5">
+                      <button
+                        type="button"
+                        title="Decrease Height"
+                        className="w-5 h-6 rounded flex items-center justify-center text-[#88889a] hover:text-white hover:bg-[#20202a] active:scale-95 transition-all cursor-pointer shrink-0"
+                        onMouseDown={() => startStepping(() => setModuleHeight((prev) => Math.max(10, prev - 2)), true)}
+                        onMouseUp={stopStepping}
+                        onMouseLeave={stopStepping}
+                      >
+                        <Minus className="w-3 h-3" />
+                      </button>
+                      <input
+                        type="number"
+                        min={10}
+                        max={9999}
+                        step={2}
+                        value={moduleHeight}
+                        title="Height (px)"
+                        onChange={(e) => setModuleHeight(Math.max(10, parseInt(e.target.value, 10) || 100))}
+                        className="flex-1 min-w-0 h-full bg-transparent text-center font-mono text-xs text-slate-100 outline-none border-none p-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      />
+                      <button
+                        type="button"
+                        title="Increase Height"
+                        className="w-5 h-6 rounded flex items-center justify-center text-[#88889a] hover:text-white hover:bg-[#20202a] active:scale-95 transition-all cursor-pointer shrink-0"
+                        onMouseDown={() => startStepping(() => setModuleHeight((prev) => Math.min(9999, prev + 2)), true)}
+                        onMouseUp={stopStepping}
+                        onMouseLeave={stopStepping}
+                      >
+                        <Plus className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Row 2: Cols / Rows & Placement */}
+          <div className="grid grid-cols-2 gap-2.5 items-start">
+            {/* Columns & Rows Dual Stepper */}
+            <div>
+              <label className="panel-label mb-1.5 ml-0.5">
+                COLS / ROWS
+              </label>
+              <div className="flex items-center h-8 bg-[#101014] border border-[#272736] focus-within:border-blue-500 rounded-lg overflow-hidden">
+                {/* Columns Half */}
+                <div className="flex-1 min-w-0 flex items-center h-full px-0.5">
+                  <button
+                    type="button"
+                    title="Decrease Columns"
+                    className="w-5 h-6 rounded flex items-center justify-center text-[#88889a] hover:text-white hover:bg-[#20202a] active:scale-95 transition-all cursor-pointer shrink-0"
+                    onMouseDown={() => startStepping(() => setCols((prev) => Math.max(1, prev - 1)), false)}
+                    onMouseUp={stopStepping}
+                    onMouseLeave={stopStepping}
+                  >
+                    <Minus className="w-3 h-3" />
+                  </button>
+                  <input
+                    type="number"
+                    min={1}
+                    max={100}
+                    value={cols}
+                    title="Columns"
+                    onChange={(e) => setCols(Math.max(1, Math.min(100, parseInt(e.target.value, 10) || 1)))}
+                    className="flex-1 min-w-0 h-full bg-transparent text-center font-mono text-xs text-slate-100 outline-none border-none p-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                  <button
+                    type="button"
+                    title="Increase Columns"
+                    className="w-5 h-6 rounded flex items-center justify-center text-[#88889a] hover:text-white hover:bg-[#20202a] active:scale-95 transition-all cursor-pointer shrink-0"
+                    onMouseDown={() => startStepping(() => setCols((prev) => Math.min(100, prev + 1)), false)}
+                    onMouseUp={stopStepping}
+                    onMouseLeave={stopStepping}
+                  >
+                    <Plus className="w-3 h-3" />
+                  </button>
+                </div>
+
+                {/* Divider */}
+                <div className="w-[1px] h-3.5 bg-[#282838] shrink-0" />
+
+                {/* Rows Half */}
+                <div className="flex-1 min-w-0 flex items-center h-full px-0.5">
+                  <button
+                    type="button"
+                    title="Decrease Rows"
+                    className="w-5 h-6 rounded flex items-center justify-center text-[#88889a] hover:text-white hover:bg-[#20202a] active:scale-95 transition-all cursor-pointer shrink-0"
+                    onMouseDown={() => startStepping(() => setRows((prev) => Math.max(1, prev - 1)), false)}
+                    onMouseUp={stopStepping}
+                    onMouseLeave={stopStepping}
+                  >
+                    <Minus className="w-3 h-3" />
+                  </button>
+                  <input
+                    type="number"
+                    min={1}
+                    max={100}
+                    value={rows}
+                    title="Rows"
+                    onChange={(e) => setRows(Math.max(1, Math.min(100, parseInt(e.target.value, 10) || 1)))}
+                    className="flex-1 min-w-0 h-full bg-transparent text-center font-mono text-xs text-slate-100 outline-none border-none p-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                  <button
+                    type="button"
+                    title="Increase Rows"
+                    className="w-5 h-6 rounded flex items-center justify-center text-[#88889a] hover:text-white hover:bg-[#20202a] active:scale-95 transition-all cursor-pointer shrink-0"
+                    onMouseDown={() => startStepping(() => setRows((prev) => Math.min(100, prev + 1)), false)}
+                    onMouseUp={stopStepping}
+                    onMouseLeave={stopStepping}
+                  >
+                    <Plus className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Placement Selector */}
+            <div>
+              <label className="panel-label mb-1.5 ml-0.5">
+                PLACEMENT
+              </label>
+              <div className="flex items-center h-8 bg-[#101014] border border-[#272736] rounded-lg p-0.5 gap-1">
+                <button
+                  type="button"
+                  onClick={() => setPlacement('right')}
+                  className={`flex-1 h-full rounded-md flex items-center justify-center gap-1 text-xs transition-all cursor-pointer select-none ${
+                    placement === 'right'
+                      ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                      : 'text-[#88889a] hover:text-[#e0e0ec] hover:bg-[#202028]'
+                  }`}
+                  title="Place to the right of existing screens"
+                >
+                  <ArrowRight className="w-3 h-3" />
+                  <span>Right</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPlacement('bottom')}
+                  className={`flex-1 h-full rounded-md flex items-center justify-center gap-1 text-xs transition-all cursor-pointer select-none ${
+                    placement === 'bottom'
+                      ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                      : 'text-[#88889a] hover:text-[#e0e0ec] hover:bg-[#202028]'
+                  }`}
+                  title="Place below existing screens"
+                >
+                  <ArrowDown className="w-3 h-3" />
+                  <span>Bottom</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Compact Resolution & Count Summary */}
+        <div className="px-3 py-2 bg-[#111116] rounded-xl border border-[#242432] mb-3.5 flex items-center justify-between text-xs">
+          <div className="flex items-center gap-2 font-mono">
+            <span className="font-semibold text-white">
+              {totalWidth} × {totalHeight} px
+            </span>
+            <span className="text-[#68687a]">•</span>
+            <span className="text-[#8e8ea2]">
+              {totalModules} modules
+            </span>
+          </div>
+          {aspectRatio && (
+            <span className="text-[#88889c] font-mono text-[11px]">
+              {aspectRatio}
+            </span>
+          )}
+        </div>
+
+        {/* Footer Actions */}
+        <div className="flex gap-2 justify-end">
+          <button
+            type="button"
+            className="h-8 px-3.5 border border-[#2e2e3e] bg-[#1a1a24] hover:bg-[#252535] rounded-lg text-xs font-medium text-slate-300 hover:text-white transition-colors cursor-pointer"
             onClick={onClose}
           >
             Cancel
           </button>
           <button
             type="button"
-            className="px-5 py-2 bg-[#5a7fa5] border border-[#5a7fa5] rounded-md text-sm font-medium text-white hover:bg-[#6a8fb5] transition-colors"
+            className="h-8 px-4 bg-blue-600 hover:bg-blue-500 border border-blue-500 rounded-lg text-xs font-semibold text-white transition-all shadow-lg shadow-blue-600/30 active:scale-[0.98] cursor-pointer flex items-center gap-1.5"
             onClick={handleCreate}
           >
-            Create
+            <Plus className="w-3.5 h-3.5" />
+            <span>Create</span>
           </button>
         </div>
       </div>
@@ -536,19 +681,19 @@ export function MergeGridsModal({ isOpen, grids, onClose, onConfirm }: MergeGrid
   };
 
   return (
-    <div className="fixed inset-0 bg-black/75 z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/75 backdrop-blur-xs z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div
-        className="bg-[#1e1e1e] border border-[#333] rounded-2xl p-6 max-w-lg w-full shadow-2xl font-sans"
+        className="bg-[#181820] border border-[#2c2c3a] rounded-2xl p-5 sm:p-6 max-w-xl w-full shadow-2xl font-sans text-[#e0e0ea]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between pb-3 border-b border-[#333] mb-4">
+        <div className="flex items-center justify-between pb-3.5 border-b border-[#242430] mb-4">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/30 flex items-center justify-center text-blue-400">
-              <MergeIcon className="w-5 h-5 text-blue-400" />
+            <div className="w-9 h-9 rounded-xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 shrink-0">
+              <MergeIcon className="w-4.5 h-4.5 text-blue-400" />
             </div>
             <div>
-              <h2 className="text-base font-semibold text-white">Merge Screens into One Canvas</h2>
-              <p className="text-[11px] text-slate-400">
+              <h2 className="text-sm font-bold text-white tracking-tight">Merge Screens into One Canvas</h2>
+              <p className="text-[11px] text-[#8e8ea0]">
                 Route continuous Data and Power lines across multiple screens
               </p>
             </div>
@@ -556,20 +701,20 @@ export function MergeGridsModal({ isOpen, grids, onClose, onConfirm }: MergeGrid
           <button
             type="button"
             onClick={onClose}
-            className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-white/5 transition-colors"
+            className="w-7 h-7 rounded-lg text-[#88889a] hover:text-white hover:bg-[#262634] flex items-center justify-center transition-colors cursor-pointer"
           >
-            <span className="material-symbols-outlined text-[20px]">close</span>
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Name input */}
         <div className="mb-4">
-          <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
+          <label className="block text-[11px] font-semibold text-[#a6a6b8] mb-1.5">
             Merged Screen Name
           </label>
           <input
             type="text"
-            className="w-full px-3 py-2 bg-[#121212] border border-[#333] rounded-xl text-[#f1f5f9] text-xs outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-mono"
+            className="w-full h-8 px-2.5 bg-[#101014] border border-[#272736] focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded-lg text-slate-100 text-xs outline-none font-mono transition-colors"
             value={mergedName}
             onChange={(e) => setMergedName(e.target.value)}
             placeholder="e.g. LED_Main_Stage"
@@ -587,7 +732,7 @@ export function MergeGridsModal({ isOpen, grids, onClose, onConfirm }: MergeGrid
           >
             <div className="flex items-start gap-2.5">
               <div
-                className={`p-1 rounded-lg shrink-0 ${
+                className={`p-1 rounded-md shrink-0 ${
                   shiftDirection !== 'none' && !activeOverlapInfo.hasOverlap
                     ? 'bg-emerald-500/20 text-emerald-400'
                     : 'bg-amber-500/20 text-amber-400'
@@ -629,39 +774,39 @@ export function MergeGridsModal({ isOpen, grids, onClose, onConfirm }: MergeGrid
                   <button
                     type="button"
                     onClick={() => setShiftDirection((prev) => (prev === 'right' ? 'none' : 'right'))}
-                    className={`px-2 py-1.5 rounded-lg text-xs font-medium border flex items-center justify-center gap-1 transition-all ${
+                    className={`h-7.5 px-2 rounded-lg text-xs font-medium border flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                       shiftDirection === 'right'
-                        ? 'bg-blue-600 border-blue-400 text-white shadow-sm'
-                        : 'bg-[#181818] border-[#383838] text-slate-300 hover:bg-[#252525] hover:text-white'
+                        ? 'bg-blue-600 border-blue-400 text-white shadow-sm font-semibold'
+                        : 'bg-[#101014] border-[#272736] text-slate-300 hover:bg-[#22222c] hover:text-white'
                     }`}
                   >
-                    <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+                    <span className="material-symbols-outlined text-[15px]">arrow_forward</span>
                     <span>Shift Right</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setShiftDirection((prev) => (prev === 'bottom' ? 'none' : 'bottom'))}
-                    className={`px-2 py-1.5 rounded-lg text-xs font-medium border flex items-center justify-center gap-1 transition-all ${
+                    className={`h-7.5 px-2 rounded-lg text-xs font-medium border flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                       shiftDirection === 'bottom'
-                        ? 'bg-blue-600 border-blue-400 text-white shadow-sm'
-                        : 'bg-[#181818] border-[#383838] text-slate-300 hover:bg-[#252525] hover:text-white'
+                        ? 'bg-blue-600 border-blue-400 text-white shadow-sm font-semibold'
+                        : 'bg-[#101014] border-[#272736] text-slate-300 hover:bg-[#22222c] hover:text-white'
                     }`}
                   >
-                    <span className="material-symbols-outlined text-[16px]">arrow_downward</span>
+                    <span className="material-symbols-outlined text-[15px]">arrow_downward</span>
                     <span>Shift Down</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setShiftDirection((prev) => (prev === 'auto' ? 'none' : 'auto'))}
-                    className={`px-2 py-1.5 rounded-lg text-xs font-medium border flex items-center justify-center gap-1 transition-all ${
+                    className={`h-7.5 px-2 rounded-lg text-xs font-medium border flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                       shiftDirection === 'auto'
-                        ? 'bg-blue-600 border-blue-400 text-white shadow-sm'
-                        : 'bg-[#181818] border-[#383838] text-slate-300 hover:bg-[#252525] hover:text-white'
+                        ? 'bg-blue-600 border-blue-400 text-white shadow-sm font-semibold'
+                        : 'bg-[#101014] border-[#272736] text-slate-300 hover:bg-[#22222c] hover:text-white'
                     }`}
                   >
-                    <span className="material-symbols-outlined text-[16px]">auto_fix_high</span>
+                    <span className="material-symbols-outlined text-[15px]">auto_fix_high</span>
                     <span>Auto-Shift</span>
                   </button>
                 </div>
@@ -672,20 +817,20 @@ export function MergeGridsModal({ isOpen, grids, onClose, onConfirm }: MergeGrid
 
         {/* Grid selector header */}
         <div className="flex items-center justify-between mb-2">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+          <span className="text-[11px] font-semibold text-[#a6a6b8]">
             Select Screens to Combine ({selectedGridIds.length}/{gridEntries.length})
           </span>
           <button
             type="button"
             onClick={handleSelectAll}
-            className="text-[11px] text-blue-400 hover:text-blue-300 font-medium transition-colors"
+            className="text-[11px] text-blue-400 hover:text-blue-300 font-medium transition-colors cursor-pointer"
           >
             {selectedGridIds.length === gridEntries.length ? 'Deselect All' : 'Select All'}
           </button>
         </div>
 
         {/* Grids list */}
-        <div className="max-h-52 overflow-y-auto space-y-2 mb-4 pr-1">
+        <div className="max-h-52 overflow-y-auto space-y-1.5 mb-4 pr-1">
           {gridEntries.length === 0 ? (
             <div className="text-center py-6 text-slate-500 text-xs">No screens available</div>
           ) : (
@@ -709,13 +854,13 @@ export function MergeGridsModal({ isOpen, grids, onClose, onConfirm }: MergeGrid
                 <div
                   key={gId}
                   onClick={() => toggleSelectGrid(gId)}
-                  className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all ${
+                  className={`flex items-center justify-between p-2.5 rounded-xl border cursor-pointer transition-all ${
                     isSelected
-                      ? 'bg-blue-950/30 border-blue-500/50 shadow-sm'
-                      : 'bg-[#141414] border-[#2a2a2a] hover:border-[#383838]'
+                      ? 'bg-blue-950/30 border-blue-500/50 shadow-xs'
+                      : 'bg-[#121217] border-[#252533] hover:border-[#383848]'
                   }`}
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2.5">
                     <input
                       type="checkbox"
                       checked={isSelected}
@@ -731,7 +876,7 @@ export function MergeGridsModal({ isOpen, grids, onClose, onConfirm }: MergeGrid
                         />
                         <span className="font-semibold text-xs text-white">{grid.name}</span>
                         <span className="text-[10px] font-mono text-slate-400 bg-black/40 px-1.5 py-0.5 rounded">
-                          {grid.cols}×{grid.rows} ({grid.moduleWidth}×{grid.moduleHeight}mm)
+                          {grid.cols}×{grid.rows} ({grid.moduleWidth}×{grid.moduleHeight}px)
                         </span>
                       </div>
                       <div className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1.5">
@@ -759,12 +904,12 @@ export function MergeGridsModal({ isOpen, grids, onClose, onConfirm }: MergeGrid
         </div>
 
         {/* Keep originals toggle */}
-        <div className="flex items-center justify-between p-3 bg-[#141414] border border-[#2a2a2a] rounded-xl mb-4">
+        <div className="flex items-center justify-between p-2.5 bg-[#121217] border border-[#252533] rounded-xl mb-4">
           <div>
-            <div className="text-xs font-medium text-slate-200">Keep original screens</div>
-            <div className="text-[10px] text-slate-400">If unchecked, source screens will be replaced</div>
+            <div className="text-xs font-semibold text-slate-200">Keep original screens</div>
+            <div className="text-[10px] text-[#808092]">If unchecked, source screens will be replaced</div>
           </div>
-          <label className="panel-toggle-switch">
+          <label className="panel-toggle-switch scale-90">
             <input
               type="checkbox"
               checked={keepOriginals}
@@ -777,25 +922,25 @@ export function MergeGridsModal({ isOpen, grids, onClose, onConfirm }: MergeGrid
         </div>
 
         {/* Combined summary footer */}
-        <div className="flex items-center justify-between bg-blue-950/20 border border-blue-900/30 p-2.5 rounded-xl mb-5 text-[11px] text-slate-300">
+        <div className="flex items-center justify-between bg-[#111116] border border-[#242432] p-2.5 rounded-xl mb-4 text-[11px] text-[#a0a0b2]">
           <span>
-            Combined: <strong className="text-white">{totalCabinets}</strong> cabinets
+            Combined: <strong className="text-white font-mono">{totalCabinets}</strong> cabinets
           </span>
           <span>•</span>
           <span>
-            <strong className="text-white">{totalDataLines}</strong> data lines
+            <strong className="text-white font-mono">{totalDataLines}</strong> data lines
           </span>
           <span>•</span>
           <span>
-            <strong className="text-white">{totalPowerGroups}</strong> power groups
+            <strong className="text-white font-mono">{totalPowerGroups}</strong> power groups
           </span>
         </div>
 
         {/* Action Buttons */}
-        <div className="flex gap-2 justify-end">
+        <div className="flex gap-2 justify-end pt-1">
           <button
             type="button"
-            className="px-4 py-2 border border-[#333] rounded-xl text-xs font-medium text-slate-300 hover:bg-white/5 transition-colors"
+            className="h-8.5 px-4 border border-[#2e2e3e] bg-[#1a1a24] hover:bg-[#252535] rounded-lg text-xs font-medium text-slate-300 hover:text-white transition-colors cursor-pointer"
             onClick={onClose}
           >
             Cancel
@@ -803,15 +948,15 @@ export function MergeGridsModal({ isOpen, grids, onClose, onConfirm }: MergeGrid
           <button
             type="button"
             disabled={!canMerge}
-            className={`px-5 py-2 rounded-xl text-xs font-semibold text-white transition-all flex items-center gap-1.5 ${
+            className={`h-8.5 px-5 rounded-lg text-xs font-semibold text-white transition-all flex items-center gap-1.5 ${
               canMerge
-                ? 'bg-blue-600 hover:bg-blue-500 shadow-lg shadow-blue-600/30 cursor-pointer'
-                : 'bg-slate-700 opacity-40 cursor-not-allowed'
+                ? 'bg-blue-600 hover:bg-blue-500 shadow-lg shadow-blue-600/30 cursor-pointer active:scale-[0.98]'
+                : 'bg-slate-800 opacity-40 cursor-not-allowed text-slate-400'
             }`}
             onClick={handleSubmit}
           >
             <MergeIcon className="w-4 h-4" />
-            Merge {selectedGridIds.length} Screens
+            <span>Merge {selectedGridIds.length} Screens</span>
           </button>
         </div>
       </div>
@@ -826,8 +971,6 @@ export interface ExportPdfModalProps {
   grids: Record<string, GridModel>;
   onClose: () => void;
   onConfirm: (options: {
-    orientation: 'landscape' | 'portrait';
-    format: 'a4' | 'a3' | 'auto';
     includeSummary: boolean;
     includeCanvasBorder: boolean;
   }) => Promise<void> | void;
@@ -841,19 +984,15 @@ export function ExportPdfModal({
   onClose,
   onConfirm
 }: ExportPdfModalProps) {
-  const defaultOrientation = outputWidth >= outputHeight ? 'landscape' : 'portrait';
-  const [orientation, setOrientation] = useState<'landscape' | 'portrait'>(defaultOrientation);
-  const [format, setFormat] = useState<'a4' | 'a3' | 'auto'>('a4');
   const [includeSummary, setIncludeSummary] = useState(true);
-  const [includeCanvasBorder, setIncludeCanvasBorder] = useState(true);
+  const [includeCanvasBorder, setIncludeCanvasBorder] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
-      setOrientation(outputWidth >= outputHeight ? 'landscape' : 'portrait');
       setIsExporting(false);
     }
-  }, [isOpen, outputWidth, outputHeight]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -861,8 +1000,6 @@ export function ExportPdfModal({
     setIsExporting(true);
     try {
       await onConfirm({
-        orientation,
-        format,
         includeSummary,
         includeCanvasBorder
       });
@@ -874,125 +1011,50 @@ export function ExportPdfModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/75 backdrop-blur-xs z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div
-        className="bg-[#202024] border border-[#383842] rounded-2xl p-6 w-full max-w-[460px] shadow-2xl font-sans"
+        className="bg-[#202024] border border-[#383842] rounded-xl p-6 w-full max-w-[460px] shadow-2xl font-sans"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between pb-4 mb-4 border-b border-[#303038]">
+        <div className="flex items-center justify-between pb-3.5 mb-4 border-b border-[#303038]">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center text-purple-400">
-              <span className="material-symbols-outlined text-[20px]">picture_as_pdf</span>
+            <div className="w-8 h-8 rounded-lg bg-purple-500/15 border border-purple-500/30 flex items-center justify-center text-purple-400">
+              <span className="material-symbols-outlined text-[18px]">picture_as_pdf</span>
             </div>
             <div>
               <h3 className="text-sm font-semibold text-white">Export to PDF</h3>
-              <p className="text-[11px] text-slate-400">Page orientation and layout settings</p>
+              <p className="text-[11px] text-slate-400">Export canvas and hardware specification</p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="w-7 h-7 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 flex items-center justify-center text-base"
+            className="w-7 h-7 rounded-md text-slate-400 hover:text-white hover:bg-white/5 flex items-center justify-center text-base cursor-pointer"
           >
             ×
           </button>
         </div>
 
-        {/* Orientation selector */}
-        <div className="mb-4">
-          <label className="block text-xs font-semibold text-slate-200 mb-2">
-            Page Orientation
-          </label>
-          <div className="grid grid-cols-2 gap-2.5">
-            <button
-              type="button"
-              onClick={() => setOrientation('landscape')}
-              className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all text-center cursor-pointer ${
-                orientation === 'landscape'
-                  ? 'bg-purple-950/30 border-purple-500/60 shadow-sm text-white'
-                  : 'bg-[#141416] border-[#2c2c34] text-slate-400 hover:border-[#444450] hover:text-slate-200'
-              }`}
-            >
-              <div className="w-10 h-7 border-2 border-current rounded-sm mb-2 flex items-center justify-center">
-                <span className="w-6 h-1.5 bg-current/40 rounded-[1px]" />
-              </div>
-              <span className="text-xs font-semibold">Landscape</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setOrientation('portrait')}
-              className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all text-center cursor-pointer ${
-                orientation === 'portrait'
-                  ? 'bg-purple-950/30 border-purple-500/60 shadow-sm text-white'
-                  : 'bg-[#141416] border-[#2c2c34] text-slate-400 hover:border-[#444450] hover:text-slate-200'
-              }`}
-            >
-              <div className="w-7 h-10 border-2 border-current rounded-sm mb-2 flex items-center justify-center">
-                <span className="w-4 h-1.5 bg-current/40 rounded-[1px]" />
-              </div>
-              <span className="text-xs font-semibold">Portrait</span>
-            </button>
+        {/* Paper Size Preset - Always Canvas / Auto */}
+        <div className="mb-4 p-3 bg-[#141416] border border-[#2c2c34] rounded-lg flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-[18px] text-purple-400">aspect_ratio</span>
+            <div>
+              <div className="text-xs font-semibold text-slate-200">Page Format: 1:1 Canvas</div>
+              <div className="text-[10px] text-slate-400">Summary table placed directly under canvas</div>
+            </div>
           </div>
-        </div>
-
-        {/* Paper Size Preset */}
-        <div className="mb-4">
-          <div className="flex items-center justify-between mb-1.5">
-            <label className="text-xs font-semibold text-slate-200">
-              Page Size
-            </label>
-            <span className="text-[10px] font-mono text-slate-400">
-              {format === 'a4'
-                ? orientation === 'landscape' ? '297 × 210 mm' : '210 × 297 mm'
-                : format === 'a3'
-                ? orientation === 'landscape' ? '420 × 297 mm' : '297 × 420 mm'
-                : `${outputWidth} × ${outputHeight} px`}
-            </span>
-          </div>
-          <div className="grid grid-cols-3 gap-2">
-            <button
-              type="button"
-              onClick={() => setFormat('a4')}
-              className={`py-2 px-3 rounded-xl border text-xs font-medium transition-all ${
-                format === 'a4'
-                  ? 'bg-purple-600 text-white border-purple-500 shadow-md shadow-purple-600/20'
-                  : 'bg-[#141416] border-[#2c2c34] text-slate-300 hover:border-[#444]'
-              }`}
-            >
-              A4
-            </button>
-            <button
-              type="button"
-              onClick={() => setFormat('a3')}
-              className={`py-2 px-3 rounded-xl border text-xs font-medium transition-all ${
-                format === 'a3'
-                  ? 'bg-purple-600 text-white border-purple-500 shadow-md shadow-purple-600/20'
-                  : 'bg-[#141416] border-[#2c2c34] text-slate-300 hover:border-[#444]'
-              }`}
-            >
-              A3
-            </button>
-            <button
-              type="button"
-              onClick={() => setFormat('auto')}
-              className={`py-2 px-3 rounded-xl border text-xs font-medium transition-all ${
-                format === 'auto'
-                  ? 'bg-purple-600 text-white border-purple-500 shadow-md shadow-purple-600/20'
-                  : 'bg-[#141416] border-[#2c2c34] text-slate-300 hover:border-[#444]'
-              }`}
-            >
-              Auto / Canvas
-            </button>
-          </div>
+          <span className="text-xs font-mono font-medium px-2 py-0.5 rounded bg-purple-950/40 text-purple-300 border border-purple-800/40">
+            {outputWidth} × {outputHeight} px
+          </span>
         </div>
 
         {/* Options Toggles */}
-        <div className="space-y-2 mb-4">
-          <div className="p-3 bg-[#141416] border border-[#2c2c34] rounded-xl flex items-center justify-between">
-            <div className="text-xs font-semibold text-slate-200">
-              Display summary on page
+        <div className="space-y-2 mb-5">
+          <div className="p-2.5 bg-[#141416] border border-[#2c2c34] rounded-lg flex items-center justify-between">
+            <div className="text-xs font-medium text-slate-200">
+              Display summary table under canvas
             </div>
             <label className="panel-toggle-switch shrink-0">
               <input
@@ -1006,8 +1068,8 @@ export function ExportPdfModal({
             </label>
           </div>
 
-          <div className="p-3 bg-[#141416] border border-[#2c2c34] rounded-xl flex items-center justify-between">
-            <div className="text-xs font-semibold text-slate-200">
+          <div className="p-2.5 bg-[#141416] border border-[#2c2c34] rounded-lg flex items-center justify-between">
+            <div className="text-xs font-medium text-slate-200">
               Canvas border
             </div>
             <label className="panel-toggle-switch shrink-0">
@@ -1024,10 +1086,10 @@ export function ExportPdfModal({
         </div>
 
         {/* Action Buttons */}
-        <div className="flex gap-2 justify-end pt-1">
+        <div className="flex gap-2 justify-end">
           <button
             type="button"
-            className="px-4 py-2 border border-[#333] rounded-xl text-xs font-medium text-slate-300 hover:bg-white/5 transition-colors cursor-pointer"
+            className="h-[38px] px-4 border border-[#383842] rounded-md text-xs font-medium text-slate-300 hover:bg-white/5 transition-colors cursor-pointer"
             onClick={onClose}
             disabled={isExporting}
           >
@@ -1036,7 +1098,7 @@ export function ExportPdfModal({
           <button
             type="button"
             disabled={isExporting}
-            className="px-5 py-2 bg-purple-600 hover:bg-purple-500 active:scale-95 border border-purple-500 rounded-xl text-xs font-semibold text-white transition-all shadow-lg shadow-purple-600/30 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+            className="h-[38px] px-4 bg-purple-600 hover:bg-purple-500 active:scale-95 border border-purple-500 rounded-md text-xs font-semibold text-white transition-all shadow-lg shadow-purple-600/30 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
             onClick={handleExport}
           >
             {isExporting ? (
